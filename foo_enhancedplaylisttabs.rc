@@ -1,0 +1,232 @@
+// Enhanced Playlist Tabs resources. Hand-written, not generated. Coordinates are dialog units.
+
+#include "resource.h"
+#include "winres.h"
+
+LANGUAGE LANG_ENGLISH, SUBLANG_ENGLISH_US
+#pragma code_page(1252)
+
+// Dialog style profile (keep every page consistent with this; see
+// foobar2000-component-dev/references/preferences-pages.md):
+//   sections : header + etched line, no group boxes, no bold
+//   fields   : labels in a left column (84 DU, field at 99), colon after
+//   rhythm   : check boxes 14 DU apart, field rows 16 DU, 12 DU before a new section header
+//   hints    : plain text under the control, or beside it for one short fact; units right of
+//              the field
+//   columns  : one column 7..293; content indented 5
+//   colours  : hex edit + swatch button that opens the colour picker
+
+/////////////////////////////////////////////////////////////////////////////
+// Configure: modal, per container. The strip, the area the pages are placed in (IDC_PAGE_HOST,
+// never shown) and the buttons.
+
+IDD_CONFIGURE DIALOGEX 0, 0, 300, 270
+STYLE DS_SETFONT | DS_MODALFRAME | DS_CENTER | WS_POPUP | WS_CAPTION | WS_SYSMENU
+CAPTION "Enhanced Playlist Tabs"
+FONT 8, "Microsoft Sans Serif", 400, 0, 0x0
+BEGIN
+    CONTROL         "",IDC_TABS,"SysTabControl32",WS_CLIPSIBLINGS | WS_TABSTOP,7,7,286,17
+    LTEXT           "",IDC_PAGE_HOST,0,28,300,218,NOT WS_VISIBLE
+    PUSHBUTTON      "Defaults",IDC_DEFAULTS,7,250,50,14
+    DEFPUSHBUTTON   "OK",IDOK,189,250,50,14
+    PUSHBUTTON      "Cancel",IDCANCEL,243,250,50,14
+END
+
+// Pages: child dialogs, 300 x 218, created once and shown one at a time. Keep the ids
+// consecutive and in tab order.
+
+IDD_PAGE_STRIP DIALOGEX 0, 0, 300, 218
+STYLE DS_SETFONT | DS_CONTROL | WS_CHILD
+FONT 8, "Microsoft Sans Serif", 400, 0, 0x0
+BEGIN
+    LTEXT           "Strip",IDC_STATIC,7,4,286,8
+    CONTROL         "",IDC_STATIC,"Static",SS_ETCHEDHORZ,7,14,286,1
+    LTEXT           "Position:",IDC_STATIC,12,23,84,8
+    COMBOBOX        IDC_POSITION,99,21,130,80,CBS_DROPDOWNLIST | WS_VSCROLL | WS_TABSTOP
+    LTEXT           "Strip thickness:",IDC_STATIC,12,39,84,8
+    EDITTEXT        IDC_THICKNESS,99,37,28,12,ES_AUTOHSCROLL | ES_NUMBER
+    LTEXT           "DIPs, 0 follows the font (0-200)",IDC_STATIC,131,39,162,8
+    CONTROL         "Rotate the text on side strips",IDC_ROTATE,"Button",BS_AUTOCHECKBOX | WS_TABSTOP,12,53,281,10
+
+    LTEXT           "Tabs",IDC_STATIC,7,75,286,8
+    CONTROL         "",IDC_STATIC,"Static",SS_ETCHEDHORZ,7,85,286,1
+    LTEXT           "Tab width:",IDC_STATIC,12,94,84,8
+    COMBOBOX        IDC_SIZING,99,92,130,80,CBS_DROPDOWNLIST | WS_VSCROLL | WS_TABSTOP
+    LTEXT           "Alignment:",IDC_STATIC,12,110,84,8
+    COMBOBOX        IDC_ALIGN,99,108,130,80,CBS_DROPDOWNLIST | WS_VSCROLL | WS_TABSTOP
+    LTEXT           "Overflow chevron:",IDC_STATIC,12,126,84,8
+    COMBOBOX        IDC_CHEVRON,99,124,130,80,CBS_DROPDOWNLIST | WS_VSCROLL | WS_TABSTOP
+    CONTROL         "Shorten titles to fit before showing the chevron",IDC_SHRINK,"Button",BS_AUTOCHECKBOX | WS_TABSTOP,12,140,281,10
+    LTEXT           "Longest title:",IDC_STATIC,12,156,84,8
+    EDITTEXT        IDC_MAX_WIDTH,99,154,28,12,ES_AUTOHSCROLL | ES_NUMBER
+    LTEXT           "DIPs, then cut with an ellipsis (0 = no limit)",IDC_STATIC,131,156,162,8
+    LTEXT           "Padding across:",IDC_STATIC,12,172,84,8
+    EDITTEXT        IDC_PAD_X,99,170,28,12,ES_AUTOHSCROLL | ES_NUMBER
+    LTEXT           "DIPs on each side of the title (0-64)",IDC_STATIC,131,172,162,8
+    LTEXT           "Padding along:",IDC_STATIC,12,188,84,8
+    EDITTEXT        IDC_PAD_Y,99,186,28,12,ES_AUTOHSCROLL | ES_NUMBER
+    LTEXT           "DIPs above and below the title (0-64)",IDC_STATIC,131,188,162,8
+    LTEXT           "Spacing:",IDC_STATIC,12,204,84,8
+    EDITTEXT        IDC_SPACING,99,202,28,12,ES_AUTOHSCROLL | ES_NUMBER
+    LTEXT           "DIPs between tabs (0-64)",IDC_STATIC,131,204,162,8
+END
+
+IDD_PAGE_LOOK DIALOGEX 0, 0, 300, 218
+STYLE DS_SETFONT | DS_CONTROL | WS_CHILD
+FONT 8, "Microsoft Sans Serif", 400, 0, 0x0
+BEGIN
+    LTEXT           "Active tab",IDC_STATIC,7,4,286,8
+    CONTROL         "",IDC_STATIC,"Static",SS_ETCHEDHORZ,7,14,286,1
+    LTEXT           "Indicator:",IDC_STATIC,12,23,84,8
+    COMBOBOX        IDC_INDICATOR,99,21,130,80,CBS_DROPDOWNLIST | WS_VSCROLL | WS_TABSTOP
+    CONTROL         "Show every tab as a chip",IDC_CHIP,"Button",BS_AUTOCHECKBOX | WS_TABSTOP,12,37,281,10
+    LTEXT           "Corner radius:",IDC_STATIC,12,53,84,8
+    EDITTEXT        IDC_RADIUS,99,51,28,12,ES_AUTOHSCROLL | ES_NUMBER
+    LTEXT           "DIPs (0-32)",IDC_STATIC,131,53,162,8
+    LTEXT           "Fill strength:",IDC_STATIC,12,69,84,8
+    CONTROL         "Automatic",IDC_STRENGTH_AUTO,"Button",BS_AUTOCHECKBOX | WS_TABSTOP,99,68,52,10
+    CONTROL         "",IDC_STRENGTH,"msctls_trackbar32",TBS_HORZ | TBS_NOTICKS | WS_TABSTOP,153,66,108,14
+    LTEXT           "",IDC_STRENGTH_VALUE,265,69,28,8
+
+    LTEXT           "Colours",IDC_STATIC,7,90,286,8
+    CONTROL         "",IDC_STATIC,"Static",SS_ETCHEDHORZ,7,100,286,1
+    LTEXT           "Accent colour:",IDC_STATIC,12,109,84,8
+    COMBOBOX        IDC_ACCENT_SOURCE,99,107,130,80,CBS_DROPDOWNLIST | WS_VSCROLL | WS_TABSTOP
+    LTEXT           "Custom accent:",IDC_STATIC,12,125,84,8
+    EDITTEXT        IDC_ACCENT_HEX,99,123,40,12,ES_AUTOHSCROLL | ES_UPPERCASE
+    CONTROL         "",IDC_ACCENT_SWATCH,"Button",BS_OWNERDRAW | WS_TABSTOP,143,123,24,12
+    LTEXT           "RRGGBB",IDC_STATIC,171,125,122,8
+    LTEXT           "Strip background:",IDC_STATIC,12,141,84,8
+    COMBOBOX        IDC_BACKGROUND,99,139,130,80,CBS_DROPDOWNLIST | WS_VSCROLL | WS_TABSTOP
+    LTEXT           "Custom background:",IDC_STATIC,12,157,84,8
+    EDITTEXT        IDC_BACKGROUND_HEX,99,155,40,12,ES_AUTOHSCROLL | ES_UPPERCASE
+    CONTROL         "",IDC_BACKGROUND_SWATCH,"Button",BS_OWNERDRAW | WS_TABSTOP,143,155,24,12
+    LTEXT           "RRGGBB",IDC_STATIC,171,157,122,8
+    LTEXT           "Tint strength:",IDC_STATIC,12,173,84,8
+    CONTROL         "",IDC_TINT,"msctls_trackbar32",TBS_HORZ | TBS_NOTICKS | WS_TABSTOP,99,170,162,14
+    LTEXT           "",IDC_TINT_VALUE,265,173,28,8
+END
+
+IDD_PAGE_TITLES DIALOGEX 0, 0, 300, 218
+STYLE DS_SETFONT | DS_CONTROL | WS_CHILD
+FONT 8, "Microsoft Sans Serif", 400, 0, 0x0
+BEGIN
+    LTEXT           "Tab titles",IDC_STATIC,7,4,286,8
+    CONTROL         "",IDC_STATIC,"Static",SS_ETCHEDHORZ,7,14,286,1
+    CONTROL         "The playlist's name",IDC_TITLE_NAME,"Button",BS_AUTORADIOBUTTON | WS_GROUP | WS_TABSTOP,12,21,281,10
+    CONTROL         "Title formatting:",IDC_TITLE_FORMAT_MODE,"Button",BS_AUTORADIOBUTTON,12,35,84,10
+    EDITTEXT        IDC_TITLE_PATTERN,99,34,140,12,ES_AUTOHSCROLL | WS_GROUP
+    PUSHBUTTON      "Functions",IDC_TITLE_HELP,243,33,50,14
+    LTEXT           "",IDC_TITLE_PREVIEW,99,50,194,8,SS_NOPREFIX | SS_ENDELLIPSIS
+    LTEXT           "Examples:",IDC_STATIC,12,64,84,8
+    COMBOBOX        IDC_TITLE_EXAMPLES,99,62,194,120,CBS_DROPDOWNLIST | WS_VSCROLL | WS_TABSTOP
+
+    LTEXT           "Fields for tab titles",IDC_STATIC,7,86,286,8
+    CONTROL         "",IDC_STATIC,"Static",SS_ETCHEDHORZ,7,96,286,1
+    LTEXT           "%title%, %playlist_name%",IDC_STATIC,12,102,84,8,SS_NOPREFIX
+    LTEXT           "The playlist's name",IDC_STATIC,99,102,194,8,SS_NOPREFIX
+    LTEXT           "%index%",IDC_STATIC,12,112,84,8,SS_NOPREFIX
+    LTEXT           "Position among the playlists: 1, 2, 3...",IDC_STATIC,99,112,194,8,SS_NOPREFIX
+    LTEXT           "%size%, %playlist_size%",IDC_STATIC,12,122,84,8,SS_NOPREFIX
+    LTEXT           "Number of tracks in the playlist",IDC_STATIC,99,122,194,8,SS_NOPREFIX
+    LTEXT           "%is_active%",IDC_STATIC,12,132,84,8,SS_NOPREFIX
+    LTEXT           "1 for the active playlist, else empty",IDC_STATIC,99,132,194,8,SS_NOPREFIX
+    LTEXT           "%is_playing%",IDC_STATIC,12,142,84,8,SS_NOPREFIX
+    LTEXT           "1 for the playlist being played, else empty",IDC_STATIC,99,142,194,8,SS_NOPREFIX
+    LTEXT           "%is_locked%",IDC_STATIC,12,152,84,8,SS_NOPREFIX
+    LTEXT           "1 for a locked playlist (an autoplaylist...), else empty",IDC_STATIC,99,152,194,8,SS_NOPREFIX
+    LTEXT           "%lock_name%",IDC_STATIC,12,162,84,8,SS_NOPREFIX
+    LTEXT           "What locks it, such as ""Autoplaylist""",IDC_STATIC,99,162,194,8,SS_NOPREFIX
+    LTEXT           "%length%",IDC_STATIC,12,172,84,8,SS_NOPREFIX
+    LTEXT           "Total length of the tracks: 1:02:03",IDC_STATIC,99,172,194,8,SS_NOPREFIX
+    LTEXT           "Track fields such as %artist% are empty here: a tab has no track.",IDC_STATIC,12,188,281,8,SS_NOPREFIX
+    LTEXT           "All functions work: $if(), $left(), $upper()... Functions opens the full list.",IDC_STATIC,12,198,281,8,SS_NOPREFIX
+END
+
+IDD_PAGE_BEHAVIOUR DIALOGEX 0, 0, 300, 218
+STYLE DS_SETFONT | DS_CONTROL | WS_CHILD
+FONT 8, "Microsoft Sans Serif", 400, 0, 0x0
+BEGIN
+    LTEXT           "Strip",IDC_STATIC,7,4,286,8
+    CONTROL         "",IDC_STATIC,"Static",SS_ETCHEDHORZ,7,14,286,1
+    LTEXT           "Show the strip:",IDC_STATIC,12,23,84,8
+    COMBOBOX        IDC_VISIBILITY,99,21,130,80,CBS_DROPDOWNLIST | WS_VSCROLL | WS_TABSTOP
+    CONTROL         "Animate switches",IDC_SWITCH_ANIM,"Button",BS_AUTOCHECKBOX | WS_TABSTOP,12,38,84,10
+    EDITTEXT        IDC_SWITCH_MS,99,37,28,12,ES_AUTOHSCROLL | ES_NUMBER
+    LTEXT           "ms: the indicator slides (50-1000)",IDC_STATIC,131,39,162,8
+
+    LTEXT           "Mouse and keyboard",IDC_STATIC,7,57,286,8
+    CONTROL         "",IDC_STATIC,"Static",SS_ETCHEDHORZ,7,67,286,1
+    CONTROL         "Switch tabs with the mouse wheel",IDC_WHEEL,"Button",BS_AUTOCHECKBOX | WS_TABSTOP,12,74,140,10
+    CONTROL         "Drag tabs to reorder them",IDC_DRAG,"Button",BS_AUTOCHECKBOX | WS_TABSTOP,155,74,138,10
+    CONTROL         "Ctrl+Tab and Ctrl+Shift+Tab cycle the tabs",IDC_CTRL_TAB,"Button",BS_AUTOCHECKBOX | WS_TABSTOP,12,88,281,10
+    LTEXT           "Middle click:",IDC_STATIC,12,104,84,8
+    COMBOBOX        IDC_MIDDLE,99,102,130,80,CBS_DROPDOWNLIST | WS_VSCROLL | WS_TABSTOP
+    CONTROL         "Ask first when the playlist has tracks",IDC_CONFIRM_REMOVE,"Button",BS_AUTOCHECKBOX | WS_TABSTOP,99,118,194,10
+
+    LTEXT           "Playlists",IDC_STATIC,7,138,286,8
+    CONTROL         "",IDC_STATIC,"Static",SS_ETCHEDHORZ,7,148,286,1
+    CONTROL         "Double-click empty strip space for a new playlist",IDC_DBLCLICK_NEW,"Button",BS_AUTOCHECKBOX | WS_TABSTOP,12,155,281,10
+    LTEXT           "Double-click a tab:",IDC_STATIC,12,171,84,8
+    COMBOBOX        IDC_DBLCLICK_TAB,99,169,130,80,CBS_DROPDOWNLIST | WS_VSCROLL | WS_TABSTOP
+    LTEXT           "Drop on empty space:",IDC_STATIC,12,187,84,8
+    COMBOBOX        IDC_DROP_NAME,99,185,194,80,CBS_DROPDOWNLIST | WS_VSCROLL | WS_TABSTOP
+    CONTROL         "Switch to the playing playlist when playback starts",IDC_FOLLOW_PLAYING,"Button",BS_AUTOCHECKBOX | WS_TABSTOP,12,203,281,10
+END
+
+IDD_PAGE_AUTOHIDE DIALOGEX 0, 0, 300, 218
+STYLE DS_SETFONT | DS_CONTROL | WS_CHILD
+FONT 8, "Microsoft Sans Serif", 400, 0, 0x0
+BEGIN
+    LTEXT           "Auto-hide",IDC_STATIC,7,4,286,8
+    CONTROL         "",IDC_STATIC,"Static",SS_ETCHEDHORZ,7,14,286,1
+    LTEXT           "Used when Show the strip (Behaviour page) is Auto-hide.",IDC_STATIC,12,21,281,8
+    LTEXT           "Reveal:",IDC_STATIC,12,37,84,8
+    COMBOBOX        IDC_AH_MODE,99,35,130,80,CBS_DROPDOWNLIST | WS_VSCROLL | WS_TABSTOP
+    LTEXT           "Animation:",IDC_STATIC,12,53,84,8
+    COMBOBOX        IDC_AH_ANIM,99,51,130,80,CBS_DROPDOWNLIST | WS_VSCROLL | WS_TABSTOP
+    LTEXT           "Animation length:",IDC_STATIC,12,69,84,8
+    EDITTEXT        IDC_AH_ANIM_MS,99,67,28,12,ES_AUTOHSCROLL | ES_NUMBER
+    LTEXT           "ms (50-1000)",IDC_STATIC,131,69,162,8
+
+    LTEXT           "Timing",IDC_STATIC,7,91,286,8
+    CONTROL         "",IDC_STATIC,"Static",SS_ETCHEDHORZ,7,101,286,1
+    LTEXT           "Hot zone:",IDC_STATIC,12,110,84,8
+    EDITTEXT        IDC_AH_HOT_ZONE,99,108,28,12,ES_AUTOHSCROLL | ES_NUMBER
+    LTEXT           "DIPs along the edge that reveal the strip (1-32)",IDC_STATIC,131,110,162,8
+    LTEXT           "Show after:",IDC_STATIC,12,126,84,8
+    EDITTEXT        IDC_AH_REVEAL,99,124,28,12,ES_AUTOHSCROLL | ES_NUMBER
+    LTEXT           "ms in the hot zone (0-5000)",IDC_STATIC,131,126,162,8
+    LTEXT           "Hide after:",IDC_STATIC,12,142,84,8
+    EDITTEXT        IDC_AH_HIDE,99,140,28,12,ES_AUTOHSCROLL | ES_NUMBER
+    LTEXT           "ms once the pointer has left (0-5000)",IDC_STATIC,131,142,162,8
+    LTEXT           "After a switch:",IDC_STATIC,12,158,84,8
+    EDITTEXT        IDC_AH_LINGER,99,156,28,12,ES_AUTOHSCROLL | ES_NUMBER
+    LTEXT           "ms shown at least (0-5000)",IDC_STATIC,131,158,162,8
+    LTEXT           "The strip also stays while its menu is open, during a drag and while it has the keyboard focus.",IDC_STATIC,12,174,281,16
+END
+
+/////////////////////////////////////////////////////////////////////////////
+// Rename: modal, from the strip's right-click menu.
+
+IDD_RENAME DIALOGEX 0, 0, 250, 50
+STYLE DS_SETFONT | DS_MODALFRAME | DS_CENTER | WS_POPUP | WS_CAPTION | WS_SYSMENU
+CAPTION "Rename playlist"
+FONT 8, "Microsoft Sans Serif", 400, 0, 0x0
+BEGIN
+    LTEXT           "Name:",IDC_STATIC,7,9,36,8
+    EDITTEXT        IDC_RENAME_TITLE,46,7,198,12,ES_AUTOHSCROLL
+    DEFPUSHBUTTON   "OK",IDOK,140,29,50,14
+    PUSHBUTTON      "Cancel",IDCANCEL,194,29,50,14
+END
+
+IDD_CONFIRM DIALOGEX 0, 0, 250, 62
+STYLE DS_SETFONT | DS_MODALFRAME | DS_CENTER | WS_POPUP | WS_CAPTION | WS_SYSMENU
+CAPTION "Confirm"
+FONT 8, "Microsoft Sans Serif", 400, 0, 0x0
+BEGIN
+    ICON            "",IDC_CONFIRM_ICON,10,10,20,20
+    LTEXT           "",IDC_CONFIRM_TEXT,40,10,203,26
+    DEFPUSHBUTTON   "Yes",IDYES,140,41,50,14
+    PUSHBUTTON      "No",IDNO,194,41,50,14
+END
