@@ -7,7 +7,8 @@ general rules (file tools, builds through `cmd //c`, v145 toolset, background jo
 
 - Build: `cmd //c build.bat Release x64` and `cmd //c build.bat Release Win32`. Read
   `build.log` / `build-Win32.log`; 0 warnings is required (/W4 /WX). The build fails on
-  post-Windows 7 imports on purpose.
+  post-Windows 7 imports and on any Columns UI import on purpose (the DLL must load without
+  Columns UI). `build.bat` also builds `columns_ui-sdk-public` (its plain Release is /MT).
 - Tests: `cmd //c test\build_tests.bat` (codec, strip layout, cover accent, strip render,
   z-order, keyed model, title fields). Results in `test/tests.out`; the last line must be
   `EXIT=0 0 0 0 0 0 0`.
@@ -28,6 +29,15 @@ general rules (file tools, builds through `cmd //c`, v145 toolset, background jo
 
 `<helpers/foobar2000+atl.h>` must be the first SDK include in every .cpp (before anything that
 pulls in `<windows.h>`), or winsock definitions clash.
+
+### Two hosts, one core
+
+`SwitcherCore` (`src/hosts/switcher_core.*`) is UI-neutral; `dui_element.cpp` and
+`cui_container.cpp` only supply the child, colours, fonts, keys and visibility through the
+`host_*` hooks. Keep UI calls out of the core. The Columns UI container is a
+`uie::splitter_window_v3` with `get_maximum_panel_count() == 1`; both hosts store the same
+`InstanceData` blob (settings + one child record). Colour/font client changes fan out to every
+live core, Default UI ones included (harmless). Use the `columns-ui-sdk` skill for SDK details.
 
 ### The playlists model
 

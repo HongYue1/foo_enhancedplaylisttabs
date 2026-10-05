@@ -290,8 +290,10 @@ BOOL ConfigureDialog::on_init_dialog(CWindow, LPARAM) {
     fill_combo(control(IDC_CHEVRON), {L"At the end of the strip", L"At the start of the strip"});
     fill_combo(control(IDC_INDICATOR), {L"Underline", L"Pill", L"Text only"});
     // Order matters: AccentSource and StripBackground, one for one.
-    fill_combo(control(IDC_ACCENT_SOURCE), {L"Default UI selection colour", L"Custom colour", L"From the playing cover"});
-    fill_combo(control(IDC_BACKGROUND), {L"Default UI background", L"Custom colour", L"Tinted with the accent"});
+    const std::wstring theme_accent = state_.ui_name + L" selection colour";
+    const std::wstring theme_background = state_.ui_name + L" background";
+    fill_combo(control(IDC_ACCENT_SOURCE), {theme_accent.c_str(), L"Custom colour", L"From the playing cover"});
+    fill_combo(control(IDC_BACKGROUND), {theme_background.c_str(), L"Custom colour", L"Tinted with the accent"});
     // Order matters: MiddleClick and TabDoubleClick, one for one.
     fill_combo(control(IDC_MIDDLE), {L"Does nothing", L"Hides the tab", L"Removes the playlist"});
     fill_combo(control(IDC_DBLCLICK_TAB), {L"Does nothing", L"Renames the playlist"});

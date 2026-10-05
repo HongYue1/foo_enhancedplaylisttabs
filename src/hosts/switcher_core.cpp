@@ -1833,7 +1833,7 @@ void SwitcherCore::append_style_menu(HMENU menu) const noexcept {
         AppendMenuW(m, MF_STRING | (s.chip ? MF_CHECKED : 0), style_chip, L"Chips");
     }
     if (HMENU m = sub(L"Accent colour"); m != nullptr) {
-        const std::wstring text = std::wstring(L"Default UI selection colour");
+        const std::wstring text = std::wstring(host_ui_name()) + L" selection colour";
         radio(m, style_accent_selection, text.c_str(), s.accent_source == AccentSource::selection);
         radio(m, style_accent_cover, L"From the playing cover", s.accent_source == AccentSource::cover);
         radio(m, style_accent_custom, L"Custom...", s.accent_source == AccentSource::custom);
@@ -1853,7 +1853,7 @@ void SwitcherCore::append_style_menu(HMENU menu) const noexcept {
         level(style_strength_solid, L"Solid", a == 100);
     }
     if (HMENU m = sub(L"Strip background"); m != nullptr) {
-        const std::wstring text = std::wstring(L"Default UI background");
+        const std::wstring text = std::wstring(host_ui_name()) + L" background";
         radio(m, style_background_theme, text.c_str(), s.strip_background == StripBackground::theme);
         radio(m, style_background_tint, L"Tinted with the accent", s.strip_background == StripBackground::accent_tint);
         radio(m, style_background_custom, L"Custom...", s.strip_background == StripBackground::custom);
@@ -1941,12 +1941,18 @@ bool SwitcherCore::run_configure(HWND parent) {
     const auto keep_alive = host_keep_alive();
     ConfigureState original;
     original.settings = settings_;
+    original.ui_name = host_ui_name();
     ConfigureState state = original;
     bool ok = false;
     menu_pin_ = true;
     try {
-        ok = run_configure_dialog(parent != nullptr ? parent : core_api::get_main_window(), state, *this,
-                                  core_wnd() != nullptr);
+        // Owned by the window the user is in: Columns UI's Layout page passes the main window,
+        // which would put the dialog behind Preferences.
+        HWND owner = GetActiveWindow();
+        if (owner == nullptr || IsWindowEnabled(owner) == FALSE) {
+            owner = parent != nullptr ? GetAncestor(parent, GA_ROOT) : core_api::get_main_window();
+        }
+        ok = run_configure_dialog(owner, state, *this, core_wnd() != nullptr);
     } catch (const std::exception& e) {
         log::warn(std::string("the Configure dialog failed: ") + e.what());
     }
@@ -2218,6 +2224,13 @@ void SwitcherCore::ah_note_switch() noexcept {
 }
 
 void SwitcherCore::on_strip_pointer() noexcept { ah_evaluate(); }
+
+void SwitcherCore::on_strip_paint_failed(const char* detail) noexcept {
+    try {
+        log::warn(std::string("the tab strip could not paint: ") + (detail != nullptr ? detail : "?"));
+    } catch (...) {
+    }
+}
 
 void SwitcherCore::on_hot_zone(bool, bool clicked) noexcept {
     if (clicked && auto_hide() && !ah_shown_) {

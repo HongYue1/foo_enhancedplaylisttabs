@@ -1,6 +1,6 @@
 #pragma once
 
-// OLE drop target on the strip window (QUEUE.md 3.3). A thin COM shim: it owns the
+// OLE drop target on the strip window. A thin COM shim: it owns the
 // IDropTargetHelper (drag images) and forwards everything else to a DropHandler, the
 // SwitcherCore, which decides what a point on the strip means. Nothing runs unless a drag is
 // over the strip: no timers or hooks while idle.

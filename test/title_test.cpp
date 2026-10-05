@@ -1,4 +1,4 @@
-// Offline test of the tab-title script inspection and the %length% text (QUEUE.md 5.3).
+// Offline test of the tab-title script inspection and the %length% text.
 // Built and run by test\build_tests.bat.
 
 #include <cstdio>

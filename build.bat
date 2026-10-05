@@ -38,6 +38,14 @@ for %%P in (
   )
 )
 
+rem The Columns UI SDK has no Release-Static configuration; its Release is already /MT.
+rem Build it with %CFG%, not %SDKCFG%.
+%MSB% "%SDK%\columns_ui-sdk\columns_ui-sdk-public.vcxproj" /p:Configuration=%CFG% %LOG%
+if errorlevel 1 (
+  echo FAILED building columns_ui-sdk-public - see %LOGFILE%
+  exit /b 1
+)
+
 %MSB% "foo_enhancedplaylisttabs.vcxproj" /p:Configuration=%CFG% %LOG%
 set BUILDERR=%ERRORLEVEL%
 if not "%BUILDERR%"=="0" (

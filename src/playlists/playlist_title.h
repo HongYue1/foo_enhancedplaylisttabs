@@ -1,6 +1,6 @@
 #pragma once
 
-// Title formatting for tab titles: the fields a playlist offers (PLAN.md section 6). The playing
+// Title formatting for tab titles: the fields a playlist offers. The playing
 // track's fields are not available here; the script runs without a track.
 //
 //   %title%, %playlist_name%   the playlist's name

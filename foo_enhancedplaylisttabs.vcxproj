@@ -47,6 +47,11 @@
     <SdkLibConfiguration Condition="'$(Configuration)'=='Debug'">Debug</SdkLibConfiguration>
     <SdkLibSubDir Condition="'$(Platform)'=='x64'">x64\$(SdkLibConfiguration)</SdkLibSubDir>
     <SdkLibSubDir Condition="'$(Platform)'=='Win32'">$(SdkLibConfiguration)</SdkLibSubDir>
+    <!-- The Columns UI SDK has no Release-Static configuration; its Release is already /MT.
+         Its TargetName is columns_ui_sdk, so the output is columns_ui_sdk.lib. -->
+    <CuiLibConfiguration>$(Configuration)</CuiLibConfiguration>
+    <CuiLibSubDir Condition="'$(Platform)'=='x64'">x64\$(CuiLibConfiguration)</CuiLibSubDir>
+    <CuiLibSubDir Condition="'$(Platform)'=='Win32'">$(CuiLibConfiguration)</CuiLibSubDir>
   </PropertyGroup>
   <PropertyGroup>
     <TargetName>foo_enhancedplaylisttabs</TargetName>
@@ -73,7 +78,7 @@
     <Link>
       <SubSystem>Windows</SubSystem>
       <GenerateDebugInformation>true</GenerateDebugInformation>
-      <AdditionalDependencies>$(SdkRoot)\pfc\$(SdkLibSubDir)\pfc.lib;$(SdkRoot)\foobar2000\SDK\$(SdkLibSubDir)\foobar2000_SDK.lib;$(SdkRoot)\foobar2000\helpers\$(SdkLibSubDir)\foobar2000_sdk_helpers.lib;$(SdkRoot)\libPPUI\$(SdkLibSubDir)\libPPUI.lib;$(SdkRoot)\foobar2000\foobar2000_component_client\$(SdkLibSubDir)\foobar2000_component_client.lib;$(SdkRoot)\foobar2000\shared\shared-$(Platform).lib;d2d1.lib;dwrite.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>$(SdkRoot)\pfc\$(SdkLibSubDir)\pfc.lib;$(SdkRoot)\foobar2000\SDK\$(SdkLibSubDir)\foobar2000_SDK.lib;$(SdkRoot)\foobar2000\helpers\$(SdkLibSubDir)\foobar2000_sdk_helpers.lib;$(SdkRoot)\libPPUI\$(SdkLibSubDir)\libPPUI.lib;$(SdkRoot)\foobar2000\foobar2000_component_client\$(SdkLibSubDir)\foobar2000_component_client.lib;$(SdkRoot)\columns_ui-sdk\$(CuiLibSubDir)\columns_ui_sdk.lib;$(SdkRoot)\foobar2000\shared\shared-$(Platform).lib;d2d1.lib;dwrite.lib;%(AdditionalDependencies)</AdditionalDependencies>
     </Link>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)'=='Debug'">
@@ -104,6 +109,7 @@
   <ItemGroup>
     <ClCompile Include="src\component.cpp" />
     <ClCompile Include="src\hosts\configure_dialog.cpp" />
+    <ClCompile Include="src\hosts\cui_container.cpp" />
     <ClCompile Include="src\hosts\dui_element.cpp" />
     <ClCompile Include="src\hosts\switcher_core.cpp" />
     <ClCompile Include="src\hosts\strip_drop.cpp" />

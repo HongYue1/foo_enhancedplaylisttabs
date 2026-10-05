@@ -1,8 +1,8 @@
 <h1 align="center">foo_enhancedplaylisttabs</h1>
 
 <p align="center">
-  Fast, customisable playlist tabs for the <a href="https://www.foobar2000.org/">foobar2000</a> v2 Default UI.<br />
-  A replacement for the built-in <b>Playlist Tabs</b> element.
+  Fast, customisable playlist tabs for the <a href="https://www.foobar2000.org/">foobar2000</a> v2 Default UI and Columns UI.<br />
+  A replacement for the built-in <b>Playlist Tabs</b>.
 </p>
 
 <p align="center">
@@ -11,9 +11,12 @@
 
 ## Features
 
-- **Works like Playlist Tabs.** A Default UI container with one tab per playlist, in playlist order,
-  and one hosted element underneath (Playlist View by default, or any other element). Clicking a tab
-  activates its playlist; the hosted element follows on its own.
+- **Works like Playlist Tabs.** A container with one tab per playlist, in playlist order, and one
+  hosted element underneath: Playlist View by default in the Default UI, NG Playlist in Columns UI,
+  or any other element or panel. Clicking a tab activates its playlist; the hosted element follows
+  on its own.
+- **Default UI and Columns UI** from the same component, with each UI's colours, fonts and dark
+  mode.
 - **One strip, no stacked rows.** Tabs that do not fit go to an overflow chevron, and the active tab
   is always kept in view. Titles can be shortened to fit before the chevron appears.
 - **Strip on any side.** Top, bottom, left or right. Side strips can rotate their titles.
@@ -36,8 +39,8 @@
 
 ## Install
 
-Requires foobar2000 v2 on Windows 7 or later, 32-bit or 64-bit (the package contains both). No other
-components are needed.
+Requires foobar2000 v2 on Windows 7 or later, 32-bit or 64-bit (the package contains both). Works
+with the Default UI and with Columns UI; no other components are needed.
 
 1. Download `foo_enhancedplaylisttabs.fb2k-component` from the [latest release](https://github.com/HongYue1/foo_enhancedplaylisttabs/releases/latest).
 2. Double-click it, or in foobar2000 open **Preferences > Components > Install...**, and restart.
@@ -46,10 +49,21 @@ To remove it, use **Preferences > Components**.
 
 ## Use
 
+### Default UI
+
 In layout editing mode (**View > Layout > Enable layout editing mode**), replace or add an element
 and pick **Enhanced Playlist Tabs** from *Containers*. It comes with Playlist View inside. To host
 another element, right-click it in layout editing mode and use **Replace hosted element...**; **Copy
 hosted element** and **Paste as hosted element** work as well.
+
+### Columns UI
+
+In **Preferences > Display > Columns UI > Layout**, add or insert a panel and pick **Enhanced
+Playlist Tabs** from *Splitters*. It comes with NG Playlist inside and holds one panel; to host
+another, change or remove the panel under it in the layout tree. Live editing (**View > Layout >
+Live editing**) works too. Colours and fonts are on the Columns UI **Colours and fonts** page, under
+*Enhanced Playlist Tabs*. The Configure dialog opens from the tab menu or the Layout page.
+Exporting and importing an FCL keeps the settings and the hosted panel.
 
 ### Tab menu
 
@@ -153,10 +167,12 @@ The project builds against sibling folders rather than vendored copies:
 some-folder/
   foo_enhancedplaylisttabs/   this repository
   SDK-2026-09-17/             foobar2000 SDK
+    columns_ui-sdk/           Columns UI SDK, inside the foobar2000 SDK folder
   wtl/                        WTL (the folder that contains Include/)
 ```
 
 - foobar2000 SDK: <https://www.foobar2000.org/SDK>
+- Columns UI SDK: <https://github.com/reupen/columns_ui-sdk>
 - WTL: <https://sourceforge.net/projects/wtl/>
 
 Then, from `foo_enhancedplaylisttabs/`:
@@ -171,7 +187,7 @@ package.bat                :: builds both, dist\foo_enhancedplaylisttabs.fb2k-co
 and 7-Zip at `C:\Program Files\7-Zip`; edit the paths at the top if yours differ. If your SDK folder
 has another name, change `SdkRoot` in `foo_enhancedplaylisttabs.vcxproj` and `SDK` in `build.bat`.
 The component links the static C runtime, so users need no redistributable. The build fails if the
-DLL imports anything newer than Windows 7.
+DLL imports anything newer than Windows 7, or anything from Columns UI (it must load without it).
 
 To try a build without packaging, copy `x64\Release\foo_enhancedplaylisttabs.dll` to
 `%APPDATA%\foobar2000-v2\user-components-x64\foo_enhancedplaylisttabs\` (or
@@ -200,6 +216,7 @@ To try a build without packaging, copy `x64\Release\foo_enhancedplaylisttabs.dll
 | --- | --- |
 | `src/component.cpp` | Component identity, DirectWrite warm-up |
 | `src/hosts/dui_element.cpp` | The Default UI container element and its hosted element |
+| `src/hosts/cui_container.cpp` | The Columns UI container, its hosted panel, colours and fonts clients |
 | `src/hosts/switcher_core.cpp` | Tabs, switching, menus, drag and drop, auto-hide |
 | `src/hosts/strip_drop.cpp` | OLE drop target for the strip and the hot zone |
 | `src/hosts/configure_dialog.cpp` | The Configure dialog, Rename and the remove confirmation |

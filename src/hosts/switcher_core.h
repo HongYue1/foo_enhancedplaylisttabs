@@ -1,11 +1,12 @@
 #pragma once
 
-// The playlist switcher behind the Default UI element (dui_element.cpp): the strip, one tab per
-// playlist, switching, layout of the strip and the single hosted child, auto-hide, colours,
-// menus and the Configure dialog. Derived from Better Tabs' TabsCore; the element supplies the
-// child window and the host's colours and fonts through the host_* hooks.
+// The playlist switcher behind the Default UI element (dui_element.cpp) and the Columns UI
+// container (cui_container.cpp): the strip, one tab per playlist, switching, layout of the strip
+// and the single hosted child, auto-hide, colours, menus and the Configure dialog. Derived from
+// Better Tabs' TabsCore; each host supplies the child window and its UI's colours and fonts
+// through the host_* hooks.
 //
-// Performance shape (PLAN.md section 7):
+// Performance shape:
 //  - a switch is playlist_manager::set_active_playlist plus StripWindow::set_active (two tab
 //    rectangles invalidated). The child is not moved, resized or invalidated by us;
 //  - playlist changes arrive once per process from playlists::Model and rebuild only the strip
@@ -99,6 +100,8 @@ protected:
     virtual bool host_shortcut(WPARAM key) noexcept = 0;
     //! Holds a reference on the element while a menu or dialog runs.
     [[nodiscard]] virtual service_ptr_t<service_base> host_keep_alive() noexcept = 0;
+    //! For labels such as "Default UI background".
+    [[nodiscard]] virtual const wchar_t* host_ui_name() const noexcept { return L"Default UI"; }
 
     // Configuration --------------------------------------------------------------------------
 
@@ -195,6 +198,7 @@ protected:
     bool on_strip_double_click(std::size_t index) noexcept override;
     void on_strip_reorder(std::size_t from, std::size_t to) noexcept override;
     void on_strip_pointer() noexcept override;
+    void on_strip_paint_failed(const char* detail) noexcept override;
     // HotZoneListener
     void on_hot_zone(bool inside, bool clicked) noexcept override;
     // ConfigureTarget

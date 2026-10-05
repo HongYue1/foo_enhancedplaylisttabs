@@ -2,8 +2,8 @@
 
 // The tab strip: the only thing this component paints. Its own child window, a sibling of the
 // hosted element, so invalidating it never touches it. Knows nothing about foobar2000: the host
-// hands it labels, a theme and a font, and it answers with intents through StripListener. That
-// keeps a future Default UI container able to reuse it unchanged.
+// hands it labels, a theme and a font, and it answers with intents through StripListener. The
+// Default UI and Columns UI containers share it unchanged.
 //
 // Painting: one persistent 32 bpp DIB section; a Direct2D DC render target is bound to exactly
 // the invalidated rectangle, draws it, and only that rectangle is copied to the screen. Text
@@ -53,7 +53,7 @@ struct StripFont {
     LOGFONTW font{};
     //! The DPI lfHeight is expressed in.
     unsigned font_dpi{96};
-    //! Optional DirectWrite description (the offline tests); wins over `font` when set.
+    //! Optional DirectWrite description (Columns UI 3+, the offline tests); wins over `font` when set.
     std::wstring family;
     DWRITE_FONT_WEIGHT weight{DWRITE_FONT_WEIGHT_NORMAL};
     DWRITE_FONT_STYLE style{DWRITE_FONT_STYLE_NORMAL};
@@ -123,6 +123,8 @@ public:
     //! The pointer entered or left the strip, mouse capture or keyboard focus changed. Auto-hide
     //! re-evaluates on it; nothing else needs it.
     virtual void on_strip_pointer() noexcept {}
+    //! Painting failed (first failure of a run); `detail` says which step, for the log.
+    virtual void on_strip_paint_failed(const char* detail) noexcept { (void)detail; }
 
 protected:
     ~StripListener() = default;
@@ -250,6 +252,8 @@ private:
     LRESULT on_message(UINT msg, WPARAM wp, LPARAM lp) noexcept;
 
     void on_paint() noexcept;
+    //! Takes the client size if width_/height_ disagree with it. True if they changed.
+    bool sync_size() noexcept;
     void on_size(int width, int height) noexcept;
     void on_mouse_move(POINT pt) noexcept;
     void on_mouse_leave() noexcept;
@@ -388,6 +392,9 @@ private:
     com_ptr<ID2D1DCRenderTarget> target_;
     com_ptr<ID2D1SolidColorBrush> brush_;
     bool cleartype_{false};
+    //! Consecutive failed paints, and why the last one failed.
+    unsigned paint_failures_{0};
+    char paint_error_[128]{};
     //! Top-left of the rectangle being rendered; drawing code works in client pixels.
     float origin_x_{0.0f};
     float origin_y_{0.0f};

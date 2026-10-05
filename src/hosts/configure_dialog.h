@@ -15,6 +15,8 @@ namespace ept {
 
 struct ConfigureState {
     Settings settings;
+    //! The UI whose colours "theme" means, for the labels ("Default UI", "Columns UI").
+    std::wstring ui_name{L"Default UI"};
 };
 
 class ConfigureTarget {

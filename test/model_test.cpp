@@ -1,4 +1,4 @@
-// Offline test of the keyed incremental strip updates (QUEUE.md 3.1): the real StripWindow, 500
+// Offline test of the keyed incremental strip updates: the real StripWindow, 500
 // tabs, and the number of text layouts each kind of change builds. One playlist created among
 // 500 must build one layout, not 500; removals, moves, hide/show and tooltip-only changes build
 // none. Also checks the resulting order and the active tab. Built and run by test\build_tests.bat.
