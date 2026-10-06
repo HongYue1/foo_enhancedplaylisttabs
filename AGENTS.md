@@ -94,3 +94,10 @@ Turn on Preferences > Advanced > Display > "Enhanced Playlist Tabs: log performa
 console". The strip-space menu then has "Perf: create 500 test playlists" / "Perf: remove the
 test playlists" (one summary line each; the per-event lines are suppressed during the bulk).
 Numbers from the user's runs are in the README.
+
+### Dialog labels in dark mode
+
+Static text is drawn on a transparent background in dark mode. Change a label's text or enabled
+state only through `set_label` / `enable` in `configure_dialog.cpp`: they skip no-op changes and
+erase the page behind the control first (`repaint_behind`). A plain `SetWindowText` or
+`EnableWindow` piles the new text on the old, which looks bold and fringed (fixed in 1.2.3).
