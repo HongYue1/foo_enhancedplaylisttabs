@@ -512,9 +512,8 @@ void ConfigureDialog::update_enabled() {
     const Settings& s = state_.settings;
     enable(IDC_ROTATE, s.position == StripPosition::left || s.position == StripPosition::right);
     enable(IDC_ALIGN, s.sizing != TabSizing::fill);
-    // The strength is the opacity of a fill, which only the pill and chips have.
-    const bool fill = s.indicator == Indicator::pill || s.indicator == Indicator::tab ||
-                      s.indicator == Indicator::tab_outline || s.chip;
+    // The strength is the opacity of the accent fill, which only the pill and the tab have.
+    const bool fill = s.indicator == Indicator::pill || s.indicator == Indicator::tab;
     enable(IDC_STRENGTH_AUTO, fill);
     enable(IDC_STRENGTH, fill && s.accent_strength != 0);
     enable(IDC_STRENGTH_VALUE, fill && s.accent_strength != 0);

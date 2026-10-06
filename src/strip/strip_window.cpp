@@ -573,12 +573,19 @@ RECT StripWindow::switch_rect() const noexcept {
 }
 
 float StripWindow::active_fill_alpha() const noexcept {
+    // The outlined tab keeps its faint fill: a strong one would make it a plain tab.
+    if (settings_.indicator == Indicator::tab_outline) return outline_fill_alpha;
     if (theme_.active_fill > 0.0f) return theme_.active_fill;
     if (settings_.indicator == Indicator::pill || settings_.indicator == Indicator::tab) {
         return theme_.dark ? pill_alpha_dark : pill_alpha_light;
     }
-    if (settings_.indicator == Indicator::tab_outline) return outline_fill_alpha;
     return chip_active_alpha;
+}
+
+bool StripWindow::accent_filled() const noexcept {
+    // Only these indicators fill the active tab with the accent. Chips stay neutral, so an
+    // underline or text-only indicator keeps its own look with chips on.
+    return settings_.indicator == Indicator::pill || tab_shape();
 }
 
 bool StripWindow::tab_shape() const noexcept {
@@ -600,7 +607,7 @@ void StripWindow::draw_switch_indicator() noexcept {
     const float inset_across = static_cast<float>((std::max)(2, px(3)));
     const float radius = static_cast<float>(px(settings_.corner_radius));
 
-    if (settings_.indicator == Indicator::pill || settings_.chip || tab_shape()) {
+    if (accent_filled()) {
         D2D1_RECT_F bg = r;
         const float ix = along_x ? inset_along : inset_across;
         const float iy = along_x ? inset_across : inset_along;
@@ -1125,7 +1132,7 @@ void StripWindow::draw_tab(std::size_t index) noexcept {
     // drawn on top keeps ClearType.
     float fill_alpha = 0.0f;
     COLORREF fill = theme_.text;
-    const bool filled_indicator = settings_.indicator == Indicator::pill || settings_.chip || tab_shape();
+    const bool filled_indicator = accent_filled();
     const bool accent_fill = active_look && filled_indicator;
     const float hover_alpha = theme_.dark ? hover_alpha_dark : hover_alpha_light;
     if (accent_fill) {
@@ -1142,7 +1149,8 @@ void StripWindow::draw_tab(std::size_t index) noexcept {
     } else if (hover) {
         fill_alpha = hover_alpha + (settings_.chip ? chip_alpha : 0.0f);
     } else if (settings_.chip) {
-        fill_alpha = chip_alpha;
+        // The active chip (underline, text only) is a little stronger than the others.
+        fill_alpha = active ? chip_alpha + hover_alpha * 0.5f : chip_alpha;
     }
     if (accent_fill) fill = accent_fill_colour(theme_, fill_alpha);
     if (fill_alpha > 0.0f) {
@@ -1196,8 +1204,7 @@ void StripWindow::draw_tab(std::size_t index) noexcept {
         if (item.icon_layout) {
             // The active tab's icon carries the accent unless a fill already does.
             const bool accent_icon = active && (settings_.indicator == Indicator::underline ||
-                                                settings_.indicator == Indicator::tab_outline) &&
-                                     !settings_.chip;
+                                                settings_.indicator == Indicator::tab_outline);
             const COLORREF icon = accent_icon ? theme_.accent : text;
             const float iy = f.top + std::floor((f.bottom - f.top - static_cast<float>(item.icon_height)) / 2.0f);
             brush_->SetColor(d2d_colour(icon));

@@ -2238,8 +2238,7 @@ void SwitcherCore::append_style_menu(HMENU menu) const noexcept {
     }
     if (HMENU m = sub(L"Accent strength"); m != nullptr) {
         // Opacity of the active tab's fill; the underline is always solid.
-        const bool fill = s.indicator == Indicator::pill || s.indicator == Indicator::tab ||
-                          s.indicator == Indicator::tab_outline || s.chip;
+        const bool fill = s.indicator == Indicator::pill || s.indicator == Indicator::tab;
         const UINT grey = fill ? 0 : MF_GRAYED;
         const auto level = [&](unsigned id, const wchar_t* text, bool on) {
             radio(m, id, text, on);
