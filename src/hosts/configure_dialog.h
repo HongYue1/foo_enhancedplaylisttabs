@@ -17,6 +17,8 @@ struct ConfigureState {
     Settings settings;
     //! The UI whose colours "theme" means, for the labels ("Default UI", "Columns UI").
     std::wstring ui_name{L"Default UI"};
+    //! That UI's name for its highlight colour ("highlight colour", "active item frame").
+    std::wstring highlight_name{L"highlight colour"};
 };
 
 class ConfigureTarget {

@@ -498,6 +498,7 @@ HostColours DuiSwitcher::host_colours() const noexcept {
         out.background = callback_->query_std_color(ui_color_background);
         out.text = callback_->query_std_color(ui_color_text);
         out.selection = callback_->query_std_color(ui_color_selection);
+        out.highlight = callback_->query_std_color(ui_color_highlight);
         out.dark = callback_->is_dark_mode();
     } catch (...) {
     }

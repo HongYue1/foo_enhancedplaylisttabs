@@ -106,6 +106,7 @@ enum StyleCommand : unsigned {
     style_indicator_none,
     style_chip,
     style_accent_selection,
+    style_accent_highlight,
     style_accent_cover,
     style_accent_custom,
     style_sizing_fit,
@@ -1530,6 +1531,7 @@ void SwitcherCore::refresh_colours() noexcept {
         // the user's choice and are only nudged when they would vanish.
         std::uint32_t accent = colour::rgb_from_colorref(colours.selection);
         if (settings_.accent_source == AccentSource::custom) accent = settings_.accent_argb & 0xFFFFFFu;
+        if (settings_.accent_source == AccentSource::highlight) accent = colour::rgb_from_colorref(colours.highlight);
         std::optional<std::uint32_t> cover_raw;
         if (settings_.accent_source == AccentSource::cover) {
             cover_raw = cover::current();
@@ -2229,6 +2231,8 @@ void SwitcherCore::append_style_menu(HMENU menu) const noexcept {
     if (HMENU m = sub(L"Accent colour"); m != nullptr) {
         const std::wstring text = std::wstring(host_ui_name()) + L" selection colour";
         radio(m, style_accent_selection, text.c_str(), s.accent_source == AccentSource::selection);
+        const std::wstring highlight = std::wstring(host_ui_name()) + L" " + host_highlight_name();
+        radio(m, style_accent_highlight, highlight.c_str(), s.accent_source == AccentSource::highlight);
         radio(m, style_accent_cover, L"From the playing cover", s.accent_source == AccentSource::cover);
         radio(m, style_accent_custom, L"Custom...", s.accent_source == AccentSource::custom);
     }
@@ -2306,6 +2310,7 @@ void SwitcherCore::run_style_command(unsigned command) noexcept {
         return;
     case style_chip: s.chip = !s.chip; break;
     case style_accent_selection: s.accent_source = AccentSource::selection; break;
+    case style_accent_highlight: s.accent_source = AccentSource::highlight; break;
     case style_accent_cover: s.accent_source = AccentSource::cover; break;
     case style_accent_custom: {
         if (!pick_colour(s.accent_argb)) return;
@@ -2347,6 +2352,7 @@ bool SwitcherCore::run_configure(HWND parent) {
     ConfigureState original;
     original.settings = settings_;
     original.ui_name = host_ui_name();
+    original.highlight_name = host_highlight_name();
     ConfigureState state = original;
     bool ok = false;
     menu_pin_ = true;

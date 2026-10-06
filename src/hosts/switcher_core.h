@@ -53,6 +53,8 @@ struct HostColours {
     COLORREF background{RGB(255, 255, 255)};
     COLORREF text{RGB(0, 0, 0)};
     COLORREF selection{RGB(0, 120, 215)};
+    //! Default UI: the highlight colour. Columns UI: the active item frame.
+    COLORREF highlight{RGB(0, 120, 215)};
     bool dark{false};
 };
 
@@ -103,6 +105,8 @@ protected:
     [[nodiscard]] virtual service_ptr_t<service_base> host_keep_alive() noexcept = 0;
     //! For labels such as "Default UI background".
     [[nodiscard]] virtual const wchar_t* host_ui_name() const noexcept { return L"Default UI"; }
+    //! The UI's own name for HostColours::highlight, after host_ui_name().
+    [[nodiscard]] virtual const wchar_t* host_highlight_name() const noexcept { return L"highlight colour"; }
 
     // Configuration --------------------------------------------------------------------------
 

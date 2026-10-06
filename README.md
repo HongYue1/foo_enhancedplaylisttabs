@@ -22,7 +22,8 @@
 - **Strip on any side.** Top, bottom, left or right. Side strips can rotate their titles.
 - **Look.** Underline, pill, tab, outlined tab or text-only indicator, optional chips, corner radius, tab width (fit the
   title, all equal or fill the strip) and alignment, padding and spacing.
-- **Accent colour** from the UI selection colour, a custom colour, or the playing track's cover. The
+- **Accent colour** from the UI selection colour, the UI highlight colour (Default UI) or active item
+  frame colour (Columns UI), a custom colour, or the playing track's cover. The
   strip background can follow the UI, be custom, or be tinted with the accent.
 - **Titles** are the playlist's name or title formatting, with fields such as `%size%`, `%length%`,
   `%index%`, `%is_playing%` and `%lock_name%`. They update live.
@@ -129,7 +130,7 @@ resets them.
 | Page | What is in it |
 | --- | --- |
 | Strip | Position (top, bottom, left, right); thickness in DIPs (0 = from the font); rotate text on side strips; tab width (fit the title, all equal, fill the strip) and alignment; overflow chevron at the end or the start; shorten titles to fit before showing the chevron; longest title before the ellipsis; padding and spacing |
-| Look | Indicator (underline, pill, tab, outlined tab, text only), chips, corner radius, fill strength; accent (UI selection colour, custom, from the playing cover); strip background (UI background, custom, tinted with the accent) and tint strength |
+| Look | Indicator (underline, pill, tab, outlined tab, text only), chips, corner radius, fill strength; accent (UI selection colour, custom, from the playing cover, UI highlight colour / Columns UI active item frame); strip background (UI background, custom, tinted with the accent) and tint strength |
 | Titles | The playlist's name or title formatting, with a live preview, examples, the list of fields and **Functions** for the full title formatting reference |
 | Behaviour | Show the strip (always, only with two or more playlists, auto-hide, never); animate switches; mouse wheel; drag to reorder; Ctrl+Tab; middle click and whether removing asks first; double-click on empty space and on a tab; what dropping on empty space names the new playlist; switch to the playing playlist when playback starts |
 | Auto-hide | Reveal over the playlist (fastest) or push it aside; animation (none, slide, fade) and length; hot zone size; delays before showing and hiding; how long the strip stays after a switch |

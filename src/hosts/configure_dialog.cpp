@@ -293,7 +293,9 @@ BOOL ConfigureDialog::on_init_dialog(CWindow, LPARAM) {
     // Order matters: AccentSource and StripBackground, one for one.
     const std::wstring theme_accent = state_.ui_name + L" selection colour";
     const std::wstring theme_background = state_.ui_name + L" background";
-    fill_combo(control(IDC_ACCENT_SOURCE), {theme_accent.c_str(), L"Custom colour", L"From the playing cover"});
+    const std::wstring theme_highlight = state_.ui_name + L" " + state_.highlight_name;
+    fill_combo(control(IDC_ACCENT_SOURCE),
+               {theme_accent.c_str(), L"Custom colour", L"From the playing cover", theme_highlight.c_str()});
     fill_combo(control(IDC_BACKGROUND), {theme_background.c_str(), L"Custom colour", L"Tinted with the accent"});
     // Order matters: MiddleClick and TabDoubleClick, one for one.
     fill_combo(control(IDC_MIDDLE),

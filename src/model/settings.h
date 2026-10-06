@@ -20,7 +20,8 @@ enum class StripVisibility : std::uint8_t { always, never, two_or_more, auto_hid
 //! active tab reads as joined to the playlist. tab_outline: the same shape as a faint fill with a
 //! solid outline on its three free sides. New values go at the end: the codec stores the number.
 enum class Indicator : std::uint8_t { underline, pill, none, tab, tab_outline };
-enum class AccentSource : std::uint8_t { selection, custom, cover };
+//! highlight: Default UI's highlight colour, Columns UI's active item frame.
+enum class AccentSource : std::uint8_t { selection, custom, cover, highlight };
 enum class StripBackground : std::uint8_t { theme, custom, accent_tint };
 //! What a middle click on a tab does. remove_playlist goes through the playlist manager, so the
 //! playlist can be brought back with File > Restore playlist.
