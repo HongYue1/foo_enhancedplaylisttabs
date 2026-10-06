@@ -25,6 +25,7 @@
 #include <vector>
 
 #include "../model/codec.h"
+#include "../model/playlist_sort.h"
 #include "../model/settings.h"
 #include "../platform/cover_hub.h"
 #include "../playlists/playlist_model.h"
@@ -120,6 +121,13 @@ protected:
 
     //! Rebuilds visible_, labels and the strip items from the model.
     void rebuild_strip() noexcept;
+    //! visible_ from the model, in strip order: tabs pinned to the start, the unpinned ones, tabs
+    //! pinned to the end, each group in playlist order. Sets pins_start_ / pins_end_.
+    void collect_visible();
+    //! Where `playlist` goes in visible_ within the group of `pin` (0 unpinned, 1 start, 2 end).
+    [[nodiscard]] std::size_t group_insert_pos(std::size_t playlist, std::uint8_t pin) const noexcept;
+    void insert_visible(std::size_t pos, std::size_t playlist, std::uint8_t pin);
+    void erase_visible(std::size_t pos) noexcept;
     void update_label(std::size_t playlist) noexcept;
     //! Title formatting is on (labels_ holds one title per playlist; empty otherwise).
     [[nodiscard]] bool format_titles() const noexcept;
@@ -140,6 +148,8 @@ protected:
     void strip_playlists_reordered() noexcept;
     void strip_playlist_flags(std::size_t playlist) noexcept;
     void strip_playlist_relabel(std::size_t playlist) noexcept;
+    //! Refreshes strip tab `pos` (showing `playlist`) from make_item().
+    void strip_relabel_at(std::size_t pos, std::size_t playlist) noexcept;
     //! After tabs came or went: strip size, visibility (two or more), limits.
     void strip_structure_changed() noexcept;
     [[nodiscard]] std::size_t strip_index_of_playlist(std::size_t playlist) const noexcept;
@@ -147,6 +157,12 @@ protected:
     //! Makes `playlist` the active one (the playlist manager tells us back).
     void activate_playlist(std::size_t playlist, bool from_user) noexcept;
     void set_playlist_hidden(std::size_t playlist, bool hidden) noexcept;
+    //! Locks the playlist with our lock, or unlocks it; beeps when another component's lock is on.
+    void toggle_lock(std::size_t playlist) noexcept;
+    //! Sorts the playlists at `positions` (playlist indices, ascending; empty = all) among
+    //! themselves; the others keep their places. By length the sum runs on a CPU worker and the
+    //! order is applied afterwards, if those playlists are still where they were.
+    void sort_playlists(SortKey key, std::vector<std::size_t> positions) noexcept;
     //! Moves playlist `from` to position `to` (playlist indices).
     void move_playlist(std::size_t from, std::size_t to) noexcept;
     void duplicate_playlist(std::size_t playlist) noexcept;
@@ -197,6 +213,8 @@ protected:
     void on_strip_middle_click(std::size_t index) noexcept override;
     bool on_strip_double_click(std::size_t index) noexcept override;
     void on_strip_reorder(std::size_t from, std::size_t to) noexcept override;
+    void on_strip_reorder_block(std::span<const std::size_t> moved, std::size_t neighbour,
+                                bool before) noexcept override;
     void on_strip_pointer() noexcept override;
     void on_strip_paint_failed(const char* detail) noexcept override;
     // HotZoneListener
@@ -261,6 +279,10 @@ protected:
     StripWindow strip_;
     //! strip index -> playlist index
     std::vector<std::size_t> visible_;
+    //! visible_ starts with pins_start_ tabs pinned to the start and ends with pins_end_ pinned
+    //! to the end; the unpinned ones between are sorted (binary search).
+    std::size_t pins_start_{0};
+    std::size_t pins_end_{0};
     std::vector<StripItem> items_;
     //! Title formatting only: the title shown, by Entry::key (so reorders carry titles along).
     //! Empty with playlist names, which are read from the model (no copy).

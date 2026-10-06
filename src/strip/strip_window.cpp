@@ -29,6 +29,9 @@ constexpr wchar_t class_name[] = L"foo_enhancedplaylisttabs_strip";
 constexpr UINT wm_dpichanged_afterparent = 0x02E3;
 constexpr float wide_layout = 100000.0f;
 constexpr UINT_PTR switch_timer = 0xB710;
+//! While dragging: polls Esc, as DoDragDrop does (the strip rarely has the keyboard focus).
+constexpr UINT_PTR drag_timer = 0xB711;
+constexpr UINT drag_poll_ms = 50;
 
 [[nodiscard]] HINSTANCE module_instance() noexcept {
     return reinterpret_cast<HINSTANCE>(&__ImageBase);
@@ -85,6 +88,39 @@ constexpr float icon_scale = 1.25f;
 
 enum class Edge : std::uint8_t { top, bottom, left, right };
 
+//! `bg` run on past `frame`'s `edge` (the side facing the panel) far enough that its rounded
+//! corners there fall outside `frame`: clipped to `frame`, it is rounded on the far side only.
+[[nodiscard]] D2D1_RECT_F open_towards(D2D1_RECT_F bg, const D2D1_RECT_F& frame, Edge edge, float radius) noexcept {
+    const float beyond = radius + 2.0f;
+    switch (edge) {
+    case Edge::bottom: bg.bottom = frame.bottom + beyond; break;
+    case Edge::top: bg.top = frame.top - beyond; break;
+    case Edge::right: bg.right = frame.right + beyond; break;
+    case Edge::left: bg.left = frame.left - beyond; break;
+    }
+    return bg;
+}
+
+//! Fills `bg` with the brush: a rounded rectangle, or with `tab` one that runs on to `frame`'s
+//! edge facing the panel. `outline` > 0 also strokes the free sides, inside the shape.
+void fill_shape(ID2D1RenderTarget* target, ID2D1Brush* fill, ID2D1Brush* line, const D2D1_RECT_F& bg,
+                const D2D1_RECT_F& frame, Edge edge, bool tab, float radius, float outline) noexcept {
+    if (!tab) {
+        if (fill != nullptr) target->FillRoundedRectangle(D2D1::RoundedRect(bg, radius, radius), fill);
+        return;
+    }
+    const D2D1_RECT_F shape = open_towards(bg, frame, edge, radius);
+    target->PushAxisAlignedClip(frame, D2D1_ANTIALIAS_MODE_ALIASED);
+    if (fill != nullptr) target->FillRoundedRectangle(D2D1::RoundedRect(shape, radius, radius), fill);
+    if (outline > 0.0f && line != nullptr) {
+        const float h = outline / 2.0f;
+        const D2D1_RECT_F stroke{shape.left + h, shape.top + h, shape.right - h, shape.bottom - h};
+        const float r = (std::max)(0.0f, radius - h);
+        target->DrawRoundedRectangle(D2D1::RoundedRect(stroke, r, r), line, outline);
+    }
+    target->PopAxisAlignedClip();
+}
+
 //! The active tab's fill colour at `alpha`: the line accent for a faint wash (it carries the hue
 //! best when mostly the strip shows through), the fill accent from about 90% on, and an OKLCh
 //! blend between.
@@ -108,12 +144,15 @@ constexpr float chip_alpha = 0.05f;
 constexpr float chip_active_alpha = 0.18f;
 constexpr float pill_alpha_dark = 0.30f;
 constexpr float pill_alpha_light = 0.26f;
+//! An outlined tab: a faint wash inside a solid accent outline.
+constexpr float outline_fill_alpha = 0.05f;
+//! Tabs in the multiple selection: an accent wash, below the active tab's.
+constexpr float selected_alpha_dark = 0.16f;
+constexpr float selected_alpha_light = 0.14f;
 //! From this fill opacity on, the active tab's text is chosen for contrast against the fill.
 constexpr float strong_fill = 0.40f;
 constexpr float text_min_contrast = 4.5f;
 constexpr float inactive_text = 0.70f;
-//! Dark mode only: the strip is lifted off the panel so it reads as chrome, not content.
-constexpr float dark_lift = 0.04f;
 
 } // namespace
 
@@ -211,7 +250,8 @@ void StripWindow::set_theme(const StripTheme& theme) noexcept {
         SetWindowTheme(tooltip_, theme.dark ? L"DarkMode_Explorer" : nullptr, nullptr);
     }
     theme_ = theme;
-    surface_ = theme.dark && theme.lift ? blend(theme.text, theme.background, dark_lift) : theme.background;
+    // Exactly the host's background (no dark-mode lift): the strip matches the UI around it.
+    surface_ = theme.background;
     if (wnd_ != nullptr) InvalidateRect(wnd_, nullptr, FALSE);
 }
 
@@ -279,6 +319,7 @@ void StripWindow::begin_item_change() noexcept {
 void StripWindow::end_item_change(std::size_t active) noexcept {
     active_ = active < items_.size() ? active : no_index;
     hover_ = no_index;
+    recount_selection();
     rebuild_items();
     update_thickness();
     relayout();
@@ -326,6 +367,7 @@ void StripWindow::set_items(std::span<const StripItem> items, std::size_t active
                 old.generation = 0; // taken: a duplicate key cannot take it twice
                 if (keep) {
                     out.spec.key = spec.key;
+                    out.spec.pin = spec.pin;
                     if (out.spec.tooltip != spec.tooltip) out.spec.tooltip = spec.tooltip;
                 } else {
                     out.spec = spec;
@@ -378,7 +420,7 @@ void StripWindow::update_item(std::size_t index, StripItem item) noexcept {
     if (index >= items_.size()) return;
     Item& target = items_[index];
     if (target.spec == item) return;
-    const bool relook = !target.spec.same_look(item);
+    const bool relook = !target.spec.same_look(item) || target.spec.pin != item.pin;
     target.spec = std::move(item);
     if (!relook) {
         // Tooltip or key only: nothing to measure or paint now.
@@ -458,7 +500,7 @@ void StripWindow::set_active(std::size_t active) noexcept {
     const std::size_t old = active_;
     stop_switch();
     active_ = active;
-    if (layout_.overflow && active != no_index && (active < layout_.first || active >= layout_.last)) {
+    if (layout_.overflow && active != no_index && !layout_.shows(active)) {
         // The visible window of tabs has to move.
         relayout();
         if (wnd_ != nullptr) InvalidateRect(wnd_, nullptr, FALSE);
@@ -532,8 +574,15 @@ RECT StripWindow::switch_rect() const noexcept {
 
 float StripWindow::active_fill_alpha() const noexcept {
     if (theme_.active_fill > 0.0f) return theme_.active_fill;
-    if (settings_.indicator == Indicator::pill) return theme_.dark ? pill_alpha_dark : pill_alpha_light;
+    if (settings_.indicator == Indicator::pill || settings_.indicator == Indicator::tab) {
+        return theme_.dark ? pill_alpha_dark : pill_alpha_light;
+    }
+    if (settings_.indicator == Indicator::tab_outline) return outline_fill_alpha;
     return chip_active_alpha;
+}
+
+bool StripWindow::tab_shape() const noexcept {
+    return settings_.indicator == Indicator::tab || settings_.indicator == Indicator::tab_outline;
 }
 
 void StripWindow::draw_switch_indicator() noexcept {
@@ -551,7 +600,7 @@ void StripWindow::draw_switch_indicator() noexcept {
     const float inset_across = static_cast<float>((std::max)(2, px(3)));
     const float radius = static_cast<float>(px(settings_.corner_radius));
 
-    if (settings_.indicator == Indicator::pill || settings_.chip) {
+    if (settings_.indicator == Indicator::pill || settings_.chip || tab_shape()) {
         D2D1_RECT_F bg = r;
         const float ix = along_x ? inset_along : inset_across;
         const float iy = along_x ? inset_across : inset_along;
@@ -559,9 +608,21 @@ void StripWindow::draw_switch_indicator() noexcept {
         bg.right -= ix;
         bg.top += iy;
         bg.bottom -= iy;
+        // The side facing the panel, in client pixels (rotated tabs face it too).
+        Edge edge = Edge::bottom;
+        switch (settings_.position) {
+        case StripPosition::top: edge = Edge::bottom; break;
+        case StripPosition::bottom: edge = Edge::top; break;
+        case StripPosition::left: edge = Edge::right; break;
+        case StripPosition::right: edge = Edge::left; break;
+        }
         const float alpha = active_fill_alpha();
         brush_->SetColor(d2d_colour(accent_fill_colour(theme_, alpha), alpha));
-        target_->FillRoundedRectangle(D2D1::RoundedRect(bg, radius, radius), brush_.get());
+        fill_shape(target_.get(), brush_.get(), nullptr, bg, r, edge, tab_shape(), radius, 0.0f);
+        if (settings_.indicator == Indicator::tab_outline) {
+            brush_->SetColor(d2d_colour(theme_.accent));
+            fill_shape(target_.get(), nullptr, brush_.get(), bg, r, edge, true, radius, outline_width());
+        }
     }
     if (settings_.indicator == Indicator::underline) {
         const float bar = static_cast<float>((std::max)(2, px(2)));
@@ -814,6 +875,15 @@ void StripWindow::relayout() noexcept {
         in.chevron = px(24);
         in.extents = extents_;
         in.active = active_;
+        // The host groups pinned tabs at the ends.
+        std::size_t pinned_start = 0;
+        while (pinned_start < items_.size() && items_[pinned_start].spec.pin == 1) ++pinned_start;
+        std::size_t pinned_end = 0;
+        while (pinned_end < items_.size() - pinned_start && items_[items_.size() - 1 - pinned_end].spec.pin == 2) {
+            ++pinned_end;
+        }
+        in.pinned_start = pinned_start;
+        in.pinned_end = pinned_end;
         // Along the text a tab can give up all but a few characters before the chevron appears.
         if (along_text && settings_.shrink_titles) in.shrink_floor = 3 * line_height_ + 2 * pad_x;
         layout_strip(in, layout_);
@@ -972,10 +1042,16 @@ bool StripWindow::render(const RECT& dirty_in) noexcept {
     target_->Clear(d2d_colour(surface_));
     if (switching_) draw_switch_indicator();
 
-    for (std::size_t i = layout_.first; i < layout_.last && i < items_.size(); ++i) {
-        const RECT r = tab_rect(i);
-        if (intersects(r, dirty)) draw_tab(i);
-    }
+    const auto draw_range = [&](std::size_t from, std::size_t to) {
+        for (std::size_t i = from; i < to && i < items_.size(); ++i) {
+            const RECT r = tab_rect(i);
+            if (intersects(r, dirty)) draw_tab(i);
+        }
+    };
+    const std::size_t n = layout_.tabs.size();
+    draw_range(0, layout_.pinned_start);
+    draw_range((std::max)(layout_.first, layout_.pinned_start), layout_.last);
+    draw_range((std::max)(n - layout_.pinned_end, layout_.last), n);
     if (layout_.overflow) {
         const RECT r = chevron_rect();
         if (intersects(r, dirty)) draw_chevron();
@@ -1049,19 +1125,33 @@ void StripWindow::draw_tab(std::size_t index) noexcept {
     // drawn on top keeps ClearType.
     float fill_alpha = 0.0f;
     COLORREF fill = theme_.text;
-    const bool accent_fill = active_look && (settings_.indicator == Indicator::pill || settings_.chip);
+    const bool filled_indicator = settings_.indicator == Indicator::pill || settings_.chip || tab_shape();
+    const bool accent_fill = active_look && filled_indicator;
+    const float hover_alpha = theme_.dark ? hover_alpha_dark : hover_alpha_light;
     if (accent_fill) {
         fill = theme_.accent;
         fill_alpha = active_fill_alpha();
+        // A faint outlined tab still shows the pointer.
+        if (hover && settings_.indicator == Indicator::tab_outline && theme_.active_fill <= 0.0f) {
+            fill_alpha += hover_alpha;
+        }
+    } else if (item.selected && !(active && switching_)) {
+        // Not while the indicator slides onto it: the slide carries the active look.
+        fill = theme_.accent;
+        fill_alpha = (theme_.dark ? selected_alpha_dark : selected_alpha_light) + (hover ? hover_alpha : 0.0f);
     } else if (hover) {
-        fill_alpha = (theme_.dark ? hover_alpha_dark : hover_alpha_light) + (settings_.chip ? chip_alpha : 0.0f);
+        fill_alpha = hover_alpha + (settings_.chip ? chip_alpha : 0.0f);
     } else if (settings_.chip) {
         fill_alpha = chip_alpha;
     }
     if (accent_fill) fill = accent_fill_colour(theme_, fill_alpha);
     if (fill_alpha > 0.0f) {
         brush_->SetColor(d2d_colour(fill, fill_alpha));
-        target_->FillRoundedRectangle(D2D1::RoundedRect(bg, radius, radius), brush_.get());
+        fill_shape(target_.get(), brush_.get(), nullptr, bg, f, edge, tab_shape(), radius, 0.0f);
+    }
+    if (active_look && settings_.indicator == Indicator::tab_outline) {
+        brush_->SetColor(d2d_colour(theme_.accent));
+        fill_shape(target_.get(), nullptr, brush_.get(), bg, f, edge, true, radius, outline_width());
     }
 
     const int pad_x = px(settings_.pad_x);
@@ -1088,7 +1178,7 @@ void StripWindow::draw_tab(std::size_t index) noexcept {
         }
         const float y = f.top + std::floor((f.bottom - f.top - static_cast<float>(item.text_height)) / 2.0f);
         COLORREF text = active || hover ? theme_.text : blend(theme_.text, surface_, inactive_text);
-        const bool final_fill = active && (settings_.indicator == Indicator::pill || settings_.chip);
+        const bool final_fill = active && filled_indicator;
         const float final_alpha = final_fill ? active_fill_alpha() : 0.0f;
         if (final_fill && final_alpha >= strong_fill) {
             // A strong accent fill: keep the theme's text if it still reads, else white or black.
@@ -1105,7 +1195,9 @@ void StripWindow::draw_tab(std::size_t index) noexcept {
         target_->PushAxisAlignedClip(f, D2D1_ANTIALIAS_MODE_ALIASED);
         if (item.icon_layout) {
             // The active tab's icon carries the accent unless a fill already does.
-            const bool accent_icon = active && settings_.indicator == Indicator::underline && !settings_.chip;
+            const bool accent_icon = active && (settings_.indicator == Indicator::underline ||
+                                                settings_.indicator == Indicator::tab_outline) &&
+                                     !settings_.chip;
             const COLORREF icon = accent_icon ? theme_.accent : text;
             const float iy = f.top + std::floor((f.bottom - f.top - static_cast<float>(item.icon_height)) / 2.0f);
             brush_->SetColor(d2d_colour(icon));
@@ -1199,13 +1291,21 @@ LRESULT StripWindow::on_message(UINT msg, WPARAM wp, LPARAM lp) noexcept {
             on_switch_timer();
             return 0;
         }
+        if (wp == drag_timer) {
+            if (!dragging_) {
+                KillTimer(wnd_, drag_timer);
+            } else if ((GetAsyncKeyState(VK_ESCAPE) & 0x8000) != 0) {
+                cancel_drag();
+            }
+            return 0;
+        }
         break;
     case WM_PAINT: on_paint(); return 0;
     case WM_SIZE: on_size(LOWORD(lp), HIWORD(lp)); return 0;
     case WM_MOUSEMOVE: on_mouse_move(POINT{GET_X_LPARAM(lp), GET_Y_LPARAM(lp)}); return 0;
     case WM_MOUSELEAVE: on_mouse_leave(); return 0;
-    case WM_LBUTTONDOWN: on_button_down(POINT{GET_X_LPARAM(lp), GET_Y_LPARAM(lp)}); return 0;
-    case WM_LBUTTONDBLCLK: on_double_click(POINT{GET_X_LPARAM(lp), GET_Y_LPARAM(lp)}); return 0;
+    case WM_LBUTTONDOWN: on_button_down(POINT{GET_X_LPARAM(lp), GET_Y_LPARAM(lp)}, wp); return 0;
+    case WM_LBUTTONDBLCLK: on_double_click(POINT{GET_X_LPARAM(lp), GET_Y_LPARAM(lp)}, wp); return 0;
     case WM_LBUTTONUP: on_button_up(POINT{GET_X_LPARAM(lp), GET_Y_LPARAM(lp)}); return 0;
     case WM_MBUTTONDOWN: return 0; // no autoscroll
     case WM_MBUTTONUP: on_middle_up(POINT{GET_X_LPARAM(lp), GET_Y_LPARAM(lp)}); return 0;
@@ -1246,9 +1346,11 @@ LRESULT StripWindow::on_message(UINT msg, WPARAM wp, LPARAM lp) noexcept {
     case WM_GETDLGCODE: return DLGC_WANTALLKEYS;
     case WM_KEYDOWN:
         if (wp == VK_ESCAPE && dragging_) {
-            end_drag(false);
-            press_index_ = no_index;
-            ReleaseCapture();
+            cancel_drag();
+            return 0;
+        }
+        if (wp == VK_ESCAPE && selected_count_ != 0) {
+            clear_selection();
             return 0;
         }
         if (on_key(wp)) return 0;
@@ -1392,14 +1494,23 @@ void StripWindow::on_mouse_move(POINT pt) noexcept {
             if (std::abs(pt.x - press_pt_.x) > dx || std::abs(pt.y - press_pt_.y) > dy) {
                 dragging_ = true;
                 stop_switch();
+                SetTimer(wnd_, drag_timer, drag_poll_ms, nullptr);
                 drag_origin_ = press_index_;
                 drag_index_ = press_index_;
+                drag_block_ = 0;
+                clear_on_release_ = false; // a dragged selection stays selected
                 if (press_index_ < layout_.tabs.size()) {
                     const Span& grabbed = layout_.tabs[press_index_];
                     const int along = horizontal() ? press_pt_.x : press_pt_.y;
                     drag_grab_ = std::clamp(along - grabbed.start, 0, (std::max)(0, grabbed.length));
                 } else {
                     drag_grab_ = 0;
+                }
+                if (items_[press_index_].selected && selected_count_ >= 2 && begin_block_drag()) {
+                    // Held at the same point of the grabbed tab, measured from the block's start.
+                    if (drag_first_ < layout_.tabs.size() && press_index_ < layout_.tabs.size()) {
+                        drag_grab_ += layout_.tabs[press_index_].start - layout_.tabs[drag_first_].start;
+                    }
                 }
                 if (tooltip_ != nullptr) SendMessageW(tooltip_, TTM_POP, 0, 0);
             }
@@ -1489,7 +1600,7 @@ void StripWindow::on_mouse_leave() noexcept {
     }
 }
 
-void StripWindow::on_button_down(POINT pt) noexcept {
+void StripWindow::on_button_down(POINT pt, WPARAM keys) noexcept {
     if (listener_ == nullptr) return;
     if (chevron_hit(pt)) {
         const RECT r = chevron_rect();
@@ -1499,7 +1610,22 @@ void StripWindow::on_button_down(POINT pt) noexcept {
         return;
     }
     const std::size_t index = hit_test(pt);
-    if (index == no_index) return;
+    if (index == no_index) {
+        // Empty strip space ends a multiple selection too.
+        if ((keys & (MK_CONTROL | MK_SHIFT)) == 0) clear_selection();
+        return;
+    }
+    if (select_click(index, keys)) {
+        // The keyboard focus comes along, so Esc can end the selection.
+        if (wnd_ != nullptr && GetFocus() != wnd_) SetFocus(wnd_);
+        return;
+    }
+    // A plain click ends a multiple selection and starts the next range here. On a selected tab
+    // that waits for the release: pressing it may start dragging the selection.
+    clear_on_release_ = items_[index].selected && selected_count_ >= 2;
+    if (!clear_on_release_) clear_selection();
+    anchor_index_ = index;
+    anchor_key_ = items_[index].spec.key;
     // Activating can re-enter (the host sends new tabs); the press is armed only afterwards.
     if (index != active_) listener_->on_strip_activate(index);
     if (wnd_ == nullptr || index >= items_.size()) return;
@@ -1517,9 +1643,11 @@ void StripWindow::set_drop_hover(std::size_t index) noexcept {
     invalidate_tab(index);
 }
 
-void StripWindow::on_double_click(POINT pt) noexcept {
+void StripWindow::on_double_click(POINT pt, WPARAM keys) noexcept {
     // CS_DBLCLKS turns the second press into this message instead of WM_LBUTTONDOWN.
     if (listener_ == nullptr || dragging_) return;
+    // Ctrl / Shift: the second click selects like the first; no double-click action.
+    if ((keys & (MK_CONTROL | MK_SHIFT)) != 0) return on_button_down(pt, keys);
     if (!chevron_hit(pt)) {
         const std::size_t index = hit_test(pt);
         // The listener may open a dialog or change the tabs: no press is armed (a held capture
@@ -1527,12 +1655,89 @@ void StripWindow::on_double_click(POINT pt) noexcept {
         if (listener_->on_strip_double_click(index)) return;
         if (wnd_ == nullptr) return;
     }
-    on_button_down(pt);
+    on_button_down(pt, keys);
+}
+
+// ---------------------------------------------------------------------------------------------
+// Multiple selection.
+
+bool StripWindow::select_click(std::size_t index, WPARAM keys) noexcept {
+    const bool ctrl = (keys & MK_CONTROL) != 0;
+    const bool shift = (keys & MK_SHIFT) != 0;
+    if ((!ctrl && !shift) || index >= items_.size()) return false;
+    if (shift) {
+        // From the anchor (the tab last clicked, else the active one) to here. Ctrl+Shift adds
+        // the range to the selection, Shift alone replaces it.
+        std::size_t anchor = anchor_index_ < items_.size() ? anchor_index_ : active_;
+        if (anchor >= items_.size()) anchor = index;
+        if (!ctrl) clear_selection();
+        const std::size_t lo = (std::min)(anchor, index);
+        const std::size_t hi = (std::max)(anchor, index);
+        for (std::size_t i = lo; i <= hi; ++i) set_selected(i, true);
+        return true;
+    }
+    // Ctrl: toggle. The first Ctrl+click brings the active tab along, as in a browser, so the
+    // selection holds both tabs the user is looking at.
+    if (selected_count_ == 0 && active_ < items_.size() && active_ != index) set_selected(active_, true);
+    set_selected(index, !items_[index].selected);
+    anchor_index_ = index;
+    anchor_key_ = items_[index].spec.key;
+    return true;
+}
+
+void StripWindow::set_selected(std::size_t index, bool selected) noexcept {
+    if (index >= items_.size() || items_[index].selected == selected) return;
+    items_[index].selected = selected;
+    if (selected) {
+        ++selected_count_;
+    } else if (selected_count_ > 0) {
+        --selected_count_;
+    }
+    invalidate_tab(index);
+}
+
+void StripWindow::clear_selection() noexcept {
+    if (selected_count_ == 0) return;
+    for (std::size_t i = 0; i < items_.size(); ++i) {
+        if (items_[i].selected) {
+            items_[i].selected = false;
+            invalidate_tab(i);
+        }
+    }
+    selected_count_ = 0;
+}
+
+void StripWindow::selection(std::vector<std::size_t>& out) const {
+    out.clear();
+    if (selected_count_ == 0) return;
+    out.reserve(selected_count_);
+    for (std::size_t i = 0; i < items_.size(); ++i) {
+        if (items_[i].selected) out.push_back(i);
+    }
+}
+
+void StripWindow::recount_selection() noexcept {
+    selected_count_ = 0;
+    anchor_index_ = no_index;
+    for (std::size_t i = 0; i < items_.size(); ++i) {
+        if (items_[i].selected) ++selected_count_;
+        if (anchor_key_ != 0 && items_[i].spec.key == anchor_key_) anchor_index_ = i;
+    }
+}
+
+const std::wstring& StripWindow::pin_glyph() noexcept {
+    // Segoe Fluent Icons and Segoe MDL2 Assets: "Pinned" (U+E840). Segoe UI Symbol (Windows 7
+    // and 8) has no such PUA glyph: the pushpin emoji, drawn with the label font's fallback.
+    // From a pointer: a ?: of two std::wstring prvalues left this static empty under MSVC.
+    static const std::wstring glyph(system_icon_family() == L"Segoe UI Symbol" ? L"\U0001F4CC" : L"\uE840");
+    return glyph;
 }
 
 void StripWindow::on_button_up(POINT) noexcept {
     press_index_ = no_index;
     if (dragging_) end_drag(true);
+    if (clear_on_release_) clear_selection();
+    clear_on_release_ = false;
     // Also when the pressed tab went away meanwhile (erase_item cleared the press).
     if (GetCapture() == wnd_) ReleaseCapture();
 }
@@ -1545,15 +1750,20 @@ void StripWindow::on_middle_up(POINT pt) noexcept {
 
 void StripWindow::drag_to(POINT pt) noexcept {
     const int pos = horizontal() ? pt.x : pt.y;
+    if (drag_block_ != 0) return block_drag_to(pos);
     // The dragged tab moves with the pointer (held where it was grabbed) and swaps with a
     // neighbour once its own edge passes the neighbour's middle: half a tab of travel, not a
     // whole one. No bouncing with unequal widths: after a swap the edge test of the way back
     // is already false (the neighbour's middle is now behind the tab's far edge).
+    // A tab only trades places within its group: the pinned tabs at either end, or the window.
     for (std::size_t guard = 0; guard < items_.size() && drag_index_ < layout_.tabs.size(); ++guard) {
         const std::size_t i = drag_index_;
         const int start = pos - drag_grab_;
         const int end = start + layout_.tabs[i].length;
-        if (i > layout_.first) {
+        std::size_t lo = 0;
+        std::size_t hi = 0;
+        layout_.group_of(i, lo, hi);
+        if (i > lo) {
             const Span& prev = layout_.tabs[i - 1];
             if (start < prev.start + prev.length / 2) {
                 move_item(i, i - 1);
@@ -1561,7 +1771,7 @@ void StripWindow::drag_to(POINT pt) noexcept {
                 continue;
             }
         }
-        if (i + 1 < layout_.last && i + 1 < layout_.tabs.size()) {
+        if (i + 1 < hi && i + 1 < layout_.tabs.size()) {
             const Span& next = layout_.tabs[i + 1];
             if (end > next.start + next.length / 2) {
                 move_item(i, i + 1);
@@ -1573,9 +1783,47 @@ void StripWindow::drag_to(POINT pt) noexcept {
     }
 }
 
+void StripWindow::cancel_drag() noexcept {
+    end_drag(false);
+    press_index_ = no_index;
+    clear_on_release_ = false;
+    if (GetCapture() == wnd_) ReleaseCapture();
+}
+
 void StripWindow::end_drag(bool commit) noexcept {
     if (!dragging_) return;
     dragging_ = false;
+    if (wnd_ != nullptr) KillTimer(wnd_, drag_timer);
+    if (drag_block_ != 0) {
+        const std::size_t first = drag_first_;
+        const std::size_t last = first + drag_block_ - 1;
+        drag_block_ = 0;
+        drag_origin_ = no_index;
+        drag_index_ = no_index;
+        if (!commit) return restore_drag_order();
+        if (last >= items_.size() || drag_keys_.size() != items_.size()) return;
+        bool same = true;
+        for (std::size_t i = 0; i < items_.size() && same; ++i) same = items_[i].spec.key == drag_keys_[i];
+        if (same || listener_ == nullptr) return;
+        // Next to a tab of the group that did not move: the one after the block, else before it.
+        std::size_t lo = 0;
+        std::size_t hi = 0;
+        layout_.group_of(first, lo, hi);
+        std::uint64_t key = 0;
+        bool before = true;
+        if (last + 1 < hi) {
+            key = items_[last + 1].spec.key;
+        } else if (first > lo) {
+            key = items_[first - 1].spec.key;
+            before = false;
+        } else {
+            return restore_drag_order(); // the whole group is selected: nothing moved
+        }
+        const auto it = std::find(drag_keys_.begin(), drag_keys_.end(), key);
+        if (it == drag_keys_.end()) return restore_drag_order();
+        listener_->on_strip_reorder_block(drag_moved_, static_cast<std::size_t>(it - drag_keys_.begin()), before);
+        return;
+    }
     const std::size_t from = drag_origin_;
     const std::size_t to = drag_index_;
     drag_origin_ = no_index;
@@ -1607,6 +1855,139 @@ void StripWindow::move_item(std::size_t from, std::size_t to) noexcept {
     };
     active_ = remap(active_);
     hover_ = remap(hover_);
+    anchor_index_ = remap(anchor_index_);
+    relayout();
+    if (wnd_ != nullptr) InvalidateRect(wnd_, nullptr, FALSE);
+}
+
+bool StripWindow::begin_block_drag() noexcept {
+    const std::size_t grabbed = press_index_;
+    if (grabbed >= items_.size() || grabbed >= layout_.tabs.size()) return false;
+    std::size_t lo = 0;
+    std::size_t hi = 0;
+    layout_.group_of(grabbed, lo, hi);
+    hi = (std::min)(hi, items_.size());
+    try {
+        drag_keys_.clear();
+        drag_moved_.clear();
+        drag_keys_.reserve(items_.size());
+        for (const Item& item : items_) {
+            if (item.spec.key == 0) return false; // keys restore a cancelled drag
+            drag_keys_.push_back(item.spec.key);
+        }
+        std::size_t lead = 0; // selected tabs before the grabbed one
+        for (std::size_t j = lo; j < hi; ++j) {
+            if (!items_[j].selected) continue;
+            drag_moved_.push_back(j);
+            if (j < grabbed) ++lead;
+        }
+        if (drag_moved_.size() < 2) return false;
+        const auto key_at = [this](std::size_t index) {
+            return index < items_.size() ? items_[index].spec.key : std::uint64_t{0};
+        };
+        const std::uint64_t active_key = key_at(active_);
+        const std::uint64_t hover_key = key_at(hover_);
+        // In order: the unselected tabs before the grabbed one, the selected ones, the rest. The
+        // grabbed tab keeps its index.
+        const auto base = items_.begin();
+        std::stable_partition(base + static_cast<std::ptrdiff_t>(lo), base + static_cast<std::ptrdiff_t>(grabbed),
+                              [](const Item& item) { return !item.selected; });
+        std::stable_partition(base + static_cast<std::ptrdiff_t>(grabbed), base + static_cast<std::ptrdiff_t>(hi),
+                              [](const Item& item) { return item.selected; });
+        drag_first_ = grabbed - lead;
+        drag_block_ = drag_moved_.size();
+        drag_key_ = items_[grabbed].spec.key;
+        const auto index_of = [this](std::uint64_t key) {
+            if (key == 0) return no_index;
+            for (std::size_t j = 0; j < items_.size(); ++j) {
+                if (items_[j].spec.key == key) return j;
+            }
+            return no_index;
+        };
+        active_ = index_of(active_key);
+        hover_ = index_of(hover_key);
+        recount_selection(); // the anchor, by key
+    } catch (...) {
+        drag_block_ = 0;
+        return false;
+    }
+    relayout();
+    if (wnd_ != nullptr) InvalidateRect(wnd_, nullptr, FALSE);
+    return true;
+}
+
+void StripWindow::block_drag_to(int pos) noexcept {
+    // As drag_to(), with the block as one wide tab: a neighbour moves to its other side once the
+    // block's edge passes the neighbour's middle.
+    for (std::size_t guard = 0; guard < items_.size(); ++guard) {
+        const std::size_t first = drag_first_;
+        const std::size_t last = first + drag_block_ - 1;
+        if (last >= layout_.tabs.size()) break;
+        const int start = pos - drag_grab_;
+        const int end = start + layout_.tabs[last].start + layout_.tabs[last].length - layout_.tabs[first].start;
+        std::size_t lo = 0;
+        std::size_t hi = 0;
+        layout_.group_of(first, lo, hi);
+        if (first > lo) {
+            const Span& prev = layout_.tabs[first - 1];
+            if (start < prev.start + prev.length / 2) {
+                move_item(first - 1, last);
+                --drag_first_;
+                continue;
+            }
+        }
+        if (last + 1 < hi && last + 1 < layout_.tabs.size()) {
+            const Span& next = layout_.tabs[last + 1];
+            if (end > next.start + next.length / 2) {
+                move_item(last + 1, first);
+                ++drag_first_;
+                continue;
+            }
+        }
+        break;
+    }
+}
+
+void StripWindow::restore_drag_order() noexcept {
+    if (drag_keys_.size() != items_.size()) return;
+    try {
+        const auto key_at = [this](std::size_t index) {
+            return index < items_.size() ? items_[index].spec.key : std::uint64_t{0};
+        };
+        const std::uint64_t active_key = key_at(active_);
+        const std::uint64_t hover_key = key_at(hover_);
+        const bool pressed = press_index_ != no_index;
+        key_index_.clear();
+        key_index_.reserve(items_.size());
+        for (std::size_t j = 0; j < items_.size(); ++j) key_index_.emplace_back(items_[j].spec.key, j);
+        std::sort(key_index_.begin(), key_index_.end());
+        // Map every key first, so a mismatch leaves the order as it is.
+        std::vector<std::size_t> from(drag_keys_.size());
+        for (std::size_t i = 0; i < drag_keys_.size(); ++i) {
+            const auto it = std::lower_bound(key_index_.begin(), key_index_.end(),
+                                             std::pair<std::uint64_t, std::size_t>(drag_keys_[i], 0));
+            if (it == key_index_.end() || it->first != drag_keys_[i]) return;
+            from[i] = it->second;
+        }
+        next_items_.clear();
+        next_items_.reserve(items_.size());
+        for (const std::size_t j : from) next_items_.push_back(std::move(items_[j]));
+        items_.swap(next_items_);
+        next_items_.clear();
+        active_ = no_index;
+        hover_ = no_index;
+        press_index_ = no_index;
+        for (std::size_t j = 0; j < items_.size(); ++j) {
+            const std::uint64_t key = items_[j].spec.key;
+            if (key == active_key) active_ = j;
+            if (key == hover_key) hover_ = j;
+            if (pressed && key == drag_key_) press_index_ = j; // a press survives (begin_item_change)
+        }
+        recount_selection();
+    } catch (...) {
+        next_items_.clear();
+        return;
+    }
     relayout();
     if (wnd_ != nullptr) InvalidateRect(wnd_, nullptr, FALSE);
 }

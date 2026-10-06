@@ -1,6 +1,6 @@
 @echo off
 rem Builds and runs the offline tests (codec, strip layout, cover accent, strip render, z-order,
-rem keyed strip updates, title fields).
+rem keyed strip updates, title fields, playlist sort).
 rem Output: test\tests.out; render PNGs in test\out\render_*.png
 setlocal
 call "C:\Program Files\Microsoft Visual Studio\18\Community\VC\Auxiliary\Build\vcvars64.bat" >nul
@@ -21,6 +21,8 @@ cl %CL_FLAGS% /Fe:out\model_test.exe model_test.cpp ..\src\strip\strip_window.cp
 if errorlevel 1 (type out\build_model.txt & exit /b 1)
 cl %CL_FLAGS% /Fe:out\title_test.exe title_test.cpp ..\src\model\title_fields.cpp /link /SUBSYSTEM:CONSOLE > out\build_title.txt 2>&1
 if errorlevel 1 (type out\build_title.txt & exit /b 1)
+cl %CL_FLAGS% /Fe:out\sort_test.exe sort_test.cpp ..\src\model\playlist_sort.cpp /link /SUBSYSTEM:CONSOLE > out\build_sort.txt 2>&1
+if errorlevel 1 (type out\build_sort.txt & exit /b 1)
 echo == codec == > tests.out
 out\codec_test.exe >> tests.out 2>&1
 set E1=%ERRORLEVEL%
@@ -42,5 +44,8 @@ set E6=%ERRORLEVEL%
 echo == title == >> tests.out
 out\title_test.exe >> tests.out 2>&1
 set E7=%ERRORLEVEL%
-echo EXIT=%E1% %E2% %E3% %E4% %E5% %E6% %E7% >> tests.out
+echo == sort == >> tests.out
+out\sort_test.exe >> tests.out 2>&1
+set E8=%ERRORLEVEL%
+echo EXIT=%E1% %E2% %E3% %E4% %E5% %E6% %E7% %E8% >> tests.out
 type tests.out

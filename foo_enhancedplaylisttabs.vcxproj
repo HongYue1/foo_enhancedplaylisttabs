@@ -116,6 +116,7 @@
     <ClCompile Include="src\playlists\user_lock.cpp" />
     <ClCompile Include="src\model\codec.cpp" />
     <ClCompile Include="src\model\cover_accent.cpp" />
+    <ClCompile Include="src\model\playlist_sort.cpp" />
     <ClCompile Include="src\model\title_fields.cpp" />
     <ClCompile Include="src\platform\alloc_counter.cpp" />
     <ClCompile Include="src\platform\cover_hub.cpp" />
@@ -135,6 +136,7 @@
     <ClInclude Include="src\model\file_name.h" />
     <ClInclude Include="src\model\title_fields.h" />
     <ClInclude Include="src\model\codec.h" />
+    <ClInclude Include="src\model\playlist_sort.h" />
     <ClInclude Include="src\model\settings.h" />
     <ClInclude Include="src\platform\com_ptr.h" />
     <ClInclude Include="src\platform\graphics.h" />

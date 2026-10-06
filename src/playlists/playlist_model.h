@@ -33,6 +33,8 @@ struct Entry {
     //! Bumped on every change of tracks: a sum started before it is thrown away.
     std::uint32_t items_version{0};
     [[nodiscard]] bool hidden() const noexcept;
+    //! 0 = not pinned, 1 = pinned to the start of the strip, 2 = to the end (StripItem::pin).
+    [[nodiscard]] std::uint8_t pin() const noexcept;
 };
 
 enum class Change : std::uint8_t {
@@ -48,7 +50,7 @@ enum class Change : std::uint8_t {
     reordered,
     //! entries()[index].name changed.
     renamed,
-    //! entries()[index].flags changed (hidden or shown).
+    //! entries()[index].flags changed (hidden or shown, pinned or unpinned).
     flags,
     //! entries()[index].locked changed.
     locked,
@@ -96,6 +98,10 @@ void set_hidden(std::size_t index, bool hidden) noexcept;
 //! Sets or clears PlaylistFlag bits in the playlist property (also with nobody subscribed) and,
 //! when the model lives, tells every listener (Change::flags). False if it could not be stored.
 bool set_flag(std::size_t index, std::uint32_t flag, bool on) noexcept;
+//! Clears then sets PlaylistFlag bits in one write (one Change::flags).
+bool change_flags(std::size_t index, std::uint32_t clear, std::uint32_t set) noexcept;
+//! Pins the playlist's tab to the start (1) or the end (2) of the strip, or unpins it (0).
+bool set_pin(std::size_t index, std::uint8_t pin) noexcept;
 //! The stored PlaylistFlag bits, read from the playlist property (no model needed).
 [[nodiscard]] std::uint32_t stored_flags(std::size_t index) noexcept;
 

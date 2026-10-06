@@ -11,6 +11,8 @@ void layout_strip(const StripLayoutInput& in, StripLayout& out) {
     out.last = 0;
     out.overflow = false;
     out.chevron = Span{};
+    out.pinned_start = (std::min)(in.pinned_start, n);
+    out.pinned_end = (std::min)(in.pinned_end, n - out.pinned_start);
     if (n == 0 || in.length <= 0) return;
 
     const int spacing = (std::max)(0, in.spacing);
@@ -80,7 +82,8 @@ void layout_strip(const StripLayoutInput& in, StripLayout& out) {
         return;
     }
 
-    // Overflow: a chevron at one end and a window of whole tabs that contains the active one.
+    // Overflow: a chevron at one end, the pinned tabs next to it at their ends, and between them
+    // a window of whole unpinned tabs that contains the active one.
     out.overflow = true;
     const int chevron = std::clamp(in.chevron, 0, in.length);
     const bool chevron_first = in.chevron_position == ChevronPosition::start;
@@ -90,43 +93,65 @@ void layout_strip(const StripLayoutInput& in, StripLayout& out) {
     // Where the tabs begin: after the chevron when it leads.
     const int origin = chevron_first ? (std::min)(in.length, chevron + gap) : 0;
 
+    const std::size_t ps = out.pinned_start;
+    const std::size_t pe = out.pinned_end;
+    const std::size_t mid_begin = ps;
+    const std::size_t mid_end = n - pe;
+    // Room the pinned tabs leave for the window, each with its gap towards the window.
+    long long pinned = 0;
+    for (std::size_t i = 0; i < ps; ++i) pinned += out.tabs[i].length + spacing;
+    for (std::size_t i = mid_end; i < n; ++i) pinned += out.tabs[i].length + spacing;
+    const long long room = static_cast<long long>(avail) - pinned;
+
     const auto fits = [&](std::size_t first, std::size_t last) {
         long long used = 0;
         for (std::size_t i = first; i < last; ++i) {
             used += out.tabs[i].length + (i > first ? spacing : 0);
         }
-        return used <= avail;
+        return used <= room;
     };
 
-    std::size_t first = 0;
-    std::size_t last = 0;
-    while (last < n && fits(first, last + 1)) ++last;
-    if (in.active != no_index && in.active < n && in.active >= last) {
+    std::size_t first = mid_begin;
+    std::size_t last = mid_begin;
+    const bool active_mid = in.active != no_index && in.active >= mid_begin && in.active < mid_end;
+    while (last < mid_end && fits(first, last + 1)) ++last;
+    if (active_mid && in.active >= last) {
         last = in.active + 1;
         first = in.active;
-        while (first > 0 && fits(first - 1, last)) --first;
+        while (first > mid_begin && fits(first - 1, last)) --first;
         // Fill any room left after the active tab.
-        while (last < n && fits(first, last + 1)) ++last;
+        while (last < mid_end && fits(first, last + 1)) ++last;
     }
-    if (last == first) last = first + 1; // One tab wider than everything: show it clipped.
+    // One tab wider than everything: show it clipped. With pins, only if it is the active one
+    // (otherwise the pinned tabs are all there is room for).
+    if (last == first && first < mid_end && (ps + pe == 0 || active_mid)) last = first + 1;
 
     int pos = 0;
-    for (std::size_t i = 0; i < n; ++i) {
-        if (i < first || i >= last) {
-            out.tabs[i] = Span{0, 0};
-            continue;
-        }
+    const auto place = [&](std::size_t i) {
         out.tabs[i].start = origin + pos;
         out.tabs[i].length = (std::min)(out.tabs[i].length, (std::max)(0, avail - pos));
         pos += out.tabs[i].length + spacing;
+        if (out.tabs[i].length == 0) pos -= spacing;
+    };
+    const auto skip = [&](std::size_t i) { out.tabs[i] = Span{origin + (std::min)(pos, avail), 0}; };
+    for (std::size_t i = 0; i < ps; ++i) place(i);
+    for (std::size_t i = mid_begin; i < mid_end; ++i) {
+        if (i < first || i >= last) {
+            skip(i);
+        } else {
+            place(i);
+        }
     }
+    for (std::size_t i = mid_end; i < n; ++i) place(i);
     out.first = first;
     out.last = last;
 }
 
 std::size_t hit_test_strip(const StripLayout& layout, int pos) noexcept {
-    std::size_t lo = layout.first;
-    std::size_t hi = layout.last;
+    // Starts never decrease (tabs not shown sit where they would be, with no length), so one
+    // search covers the pinned tabs and the window alike.
+    std::size_t lo = 0;
+    std::size_t hi = layout.tabs.size();
     // Placed tabs are sorted and non-overlapping: find the last one starting at or before pos.
     while (lo < hi) {
         const std::size_t mid = lo + (hi - lo) / 2;
@@ -136,7 +161,7 @@ std::size_t hit_test_strip(const StripLayout& layout, int pos) noexcept {
             hi = mid;
         }
     }
-    if (lo == layout.first) return no_index;
+    if (lo == 0) return no_index;
     const std::size_t i = lo - 1;
     return pos < layout.tabs[i].end() ? i : no_index;
 }

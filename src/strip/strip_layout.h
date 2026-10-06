@@ -4,6 +4,7 @@
 // y for a side strip), in whole device pixels, so edges are always crisp. Pure: no Win32, no
 // allocation once `out` has grown to the tab count. test/layout_test.cpp covers it offline.
 
+#include <algorithm>
 #include <cstddef>
 #include <span>
 #include <vector>
@@ -39,15 +40,43 @@ struct StripLayoutInput {
     //! (or their natural length, if shorter). Only when even that does not fit do they overflow
     //! to the chevron. 0 = never shorten.
     int shrink_floor{0};
+    //! The first `pinned_start` and the last `pinned_end` tabs are pinned: when the tabs overflow
+    //! they stay on screen at their end of the strip, between the chevron and the scrolling window,
+    //! and only the tabs between them go to the chevron. Clamped to the tab count.
+    std::size_t pinned_start{0};
+    std::size_t pinned_end{0};
 };
 
 struct StripLayout {
-    //! One per input tab. Tabs outside [first, last) have length 0 and are not drawn.
+    //! One per input tab. Tabs that are not shown have length 0 and are not drawn; their start is
+    //! where they would be, so starts never decrease along the strip (hit_test_strip relies on it).
     std::vector<Span> tabs;
+    //! The window of unpinned tabs shown, within [pinned_start, tabs.size() - pinned_end).
     std::size_t first{0};
     std::size_t last{0};
+    //! The pinned tabs (clamped input): [0, pinned_start) and [tabs.size() - pinned_end, size).
+    std::size_t pinned_start{0};
+    std::size_t pinned_end{0};
     bool overflow{false};
     Span chevron;
+    //! Tab `i` is in the shown set (pinned or in the window); it may still be clipped to nothing.
+    [[nodiscard]] bool shows(std::size_t i) const noexcept {
+        return i < tabs.size() && (i < pinned_start || i >= tabs.size() - pinned_end || (i >= first && i < last));
+    }
+    //! The tabs `i` can trade places with by dragging: its pin group, or the shown window.
+    void group_of(std::size_t i, std::size_t& lo, std::size_t& hi) const noexcept {
+        const std::size_t n = tabs.size();
+        if (i < pinned_start) {
+            lo = 0;
+            hi = pinned_start;
+        } else if (i >= n - pinned_end) {
+            lo = n - pinned_end;
+            hi = n;
+        } else {
+            lo = (std::max)(first, pinned_start);
+            hi = (std::min)(last, n - pinned_end);
+        }
+    }
 };
 
 //! Reuses `out`'s storage.

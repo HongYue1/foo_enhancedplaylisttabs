@@ -14,6 +14,7 @@
 
 #include "../model/colour.h"
 #include "../model/file_name.h"
+#include "../model/playlist_sort.h"
 #include "../model/title_fields.h"
 #include "../platform/graphics.h"
 #include "../platform/logging.h"
@@ -54,6 +55,15 @@ enum TabCommand : unsigned {
     cmd_perf_create,
     cmd_perf_remove,
     cmd_configure,
+    cmd_pin_start,
+    cmd_pin_end,
+    cmd_unpin,
+    cmd_sort_name,
+    cmd_sort_size,
+    cmd_sort_length,
+    cmd_sort_descending,
+    cmd_sort_articles,
+    cmd_clear_selection,
 };
 constexpr unsigned menu_unhide_base = 3100;
 //! The Appearance submenu.
@@ -117,6 +127,9 @@ enum StyleCommand : unsigned {
     style_background_theme,
     style_background_tint,
     style_background_custom,
+    style_indicator_tab,
+    style_indicator_tab_outline,
+    style_pin_icon,
     style_last,
 };
 
@@ -391,7 +404,11 @@ bool SwitcherCore::relabel_if_changed(std::size_t playlist) noexcept {
 StripItem SwitcherCore::make_item(std::size_t playlist) const {
     StripItem item;
     const auto& entries = playlists::entries();
-    if (playlist < entries.size()) item.key = entries[playlist].key;
+    if (playlist < entries.size()) {
+        item.key = entries[playlist].key;
+        item.pin = entries[playlist].pin();
+        if (item.pin != 0 && settings_.pin_icon) item.icon = StripWindow::pin_glyph();
+    }
     item.label = label_of(playlist); // the tooltip stays empty: the strip shows the label
     return item;
 }
@@ -435,17 +452,14 @@ void SwitcherCore::rebuild_strip() noexcept {
             labels_.reserve(entries.size());
             for (std::size_t i = 0; i < entries.size(); ++i) update_label(i);
         }
-        visible_.clear();
+        collect_visible();
         items_.resize(0);
-        visible_.reserve(entries.size());
-        items_.reserve(entries.size());
-        for (std::size_t i = 0; i < entries.size(); ++i) {
-            if (entries[i].hidden()) continue;
-            visible_.push_back(i);
-            items_.push_back(make_item(i));
-        }
+        items_.reserve(visible_.size());
+        for (const std::size_t i : visible_) items_.push_back(make_item(i));
     } catch (...) {
         visible_.clear();
+        pins_start_ = 0;
+        pins_end_ = 0;
         items_.clear();
     }
     // Keyed: tabs whose title did not change keep their layouts.
@@ -461,11 +475,49 @@ void SwitcherCore::rebuild_strip() noexcept {
     }
 }
 
+void SwitcherCore::collect_visible() {
+    const auto& entries = playlists::entries();
+    visible_.clear();
+    pins_start_ = 0;
+    pins_end_ = 0;
+    visible_.reserve(entries.size());
+    bool pins = false;
+    for (std::size_t i = 0; i < entries.size(); ++i) {
+        if (entries[i].hidden()) continue;
+        if (entries[i].pin() != 0) {
+            pins = true;
+            continue;
+        }
+        visible_.push_back(i);
+    }
+    if (!pins) return; // the usual case: one pass
+    visible_.clear();
+    for (const std::uint8_t group : {std::uint8_t{1}, std::uint8_t{0}, std::uint8_t{2}}) {
+        for (std::size_t i = 0; i < entries.size(); ++i) {
+            if (entries[i].hidden() || entries[i].pin() != group) continue;
+            visible_.push_back(i);
+            if (group == 1) ++pins_start_;
+            if (group == 2) ++pins_end_;
+        }
+    }
+}
+
 std::size_t SwitcherCore::strip_index_of_playlist(std::size_t playlist) const noexcept {
     if (playlist == SIZE_MAX) return no_index;
-    // visible_ is sorted: binary search.
-    const auto it = std::lower_bound(visible_.begin(), visible_.end(), playlist);
-    return it != visible_.end() && *it == playlist ? static_cast<std::size_t>(it - visible_.begin()) : no_index;
+    const std::size_t n = visible_.size();
+    if (pins_start_ + pins_end_ > n) return no_index;
+    // The pinned groups are short: scan them.
+    for (std::size_t i = 0; i < pins_start_; ++i) {
+        if (visible_[i] == playlist) return i;
+    }
+    for (std::size_t i = n - pins_end_; i < n; ++i) {
+        if (visible_[i] == playlist) return i;
+    }
+    // The unpinned tabs are sorted: binary search.
+    const auto first = visible_.begin() + static_cast<std::ptrdiff_t>(pins_start_);
+    const auto last = visible_.end() - static_cast<std::ptrdiff_t>(pins_end_);
+    const auto it = std::lower_bound(first, last, playlist);
+    return it != last && *it == playlist ? static_cast<std::size_t>(it - visible_.begin()) : no_index;
 }
 
 std::size_t SwitcherCore::playlist_of_strip(std::size_t strip_index) const noexcept {
@@ -528,6 +580,120 @@ void SwitcherCore::set_playlist_hidden(std::size_t playlist, bool hidden) noexce
         activate_playlist(fallback_visible(playlist + 1), false);
     } else if (!hidden) {
         activate_playlist(playlist, true);
+    }
+}
+
+void SwitcherCore::toggle_lock(std::size_t playlist) noexcept {
+    if (playlist >= playlists::entries().size()) return;
+    // Refused while another component's lock is on: that one is not ours to lift.
+    if (!playlists::set_user_lock(playlist, !playlists::has_user_lock(playlist))) MessageBeep(MB_ICONWARNING);
+}
+
+namespace {
+
+[[nodiscard]] const char* sort_key_name(SortKey key) noexcept {
+    switch (key) {
+    case SortKey::size: return "number of tracks";
+    case SortKey::length: return "total length";
+    case SortKey::name:
+    default: return "name";
+    }
+}
+
+//! Puts the playlists at `positions` in sorted order among themselves, if every one of them is
+//! still the playlist (by key) it was when the sort started. Main thread.
+void apply_sort(const std::vector<std::size_t>& positions, const std::vector<std::uint64_t>& keys,
+                const std::vector<SortEntry>& entries, SortKey key, bool descending, bool ignore_articles,
+                std::uint64_t t_start) noexcept {
+    try {
+        for (std::size_t k = 0; k < positions.size(); ++k) {
+            if (playlists::index_of_key(keys[k]) != positions[k]) {
+                log::info("sort skipped: the playlists changed while their lengths were summed");
+                return;
+            }
+        }
+        auto pm = playlist_manager::get();
+        const std::size_t count = pm->get_playlist_count();
+        const std::vector<std::size_t> sorted = sort_order(entries, key, descending, ignore_articles);
+        // new[i] = old[order[i]]: each sorted slot takes the playlist that sorts there.
+        std::vector<t_size> order(count);
+        for (std::size_t i = 0; i < count; ++i) order[i] = i;
+        bool moved = false;
+        for (std::size_t k = 0; k < positions.size(); ++k) {
+            if (positions[k] >= count || positions[sorted[k]] >= count) return;
+            order[positions[k]] = positions[sorted[k]];
+            moved = moved || sorted[k] != k;
+        }
+        if (moved) (void)pm->reorder(order.data(), count);
+        if (t_start != 0) {
+            pfc::string_formatter f;
+            f << "sorted " << pfc::format_uint(positions.size()) << " playlists by " << sort_key_name(key) << " in "
+              << pfc::format_float(perf::elapsed_ms(t_start, perf::now()), 0, 3) << " ms"
+              << (moved ? "" : " (already in order)");
+            log::info(f.get_ptr());
+        }
+    } catch (const std::exception& e) {
+        log::warn(std::string("sorting the playlists failed: ") + e.what());
+    }
+}
+
+} // namespace
+
+void SwitcherCore::sort_playlists(SortKey key, std::vector<std::size_t> positions) noexcept {
+    const std::uint64_t t_start = perf::enabled() ? perf::now() : 0;
+    try {
+        const auto& model = playlists::entries();
+        if (positions.empty()) {
+            positions.resize(model.size());
+            for (std::size_t i = 0; i < positions.size(); ++i) positions[i] = i;
+        }
+        std::sort(positions.begin(), positions.end());
+        positions.erase(std::unique(positions.begin(), positions.end()), positions.end());
+        if (positions.size() < 2 || positions.back() >= model.size()) return;
+        auto pm = playlist_manager::get();
+        std::vector<std::uint64_t> keys(positions.size());
+        std::vector<SortEntry> entries(positions.size());
+        for (std::size_t k = 0; k < positions.size(); ++k) {
+            const std::size_t p = positions[k];
+            keys[k] = model[p].key;
+            entries[k].name = model[p].name;
+            entries[k].count = pm->playlist_get_item_count(p);
+        }
+        const bool descending = settings_.sort_descending;
+        const bool articles = settings_.sort_ignore_articles;
+        if (key != SortKey::length) {
+            apply_sort(positions, keys, entries, key, descending, articles, t_start);
+            return;
+        }
+        // Lengths: copy the handle lists here, sum them on a CPU worker (a cold get_length() is
+        // ~50 us a track), then reorder back on the main thread.
+        auto lists = std::make_shared<std::vector<metadb_handle_list>>(positions.size());
+        for (std::size_t k = 0; k < positions.size(); ++k) pm->playlist_get_all_items(positions[k], (*lists)[k]);
+        auto job = std::make_shared<std::vector<SortEntry>>(std::move(entries));
+        fb2k::inCpuWorkerThread([lists, job, positions = std::move(positions), keys = std::move(keys), descending,
+                                 articles, t_start]() mutable {
+            try {
+                for (std::size_t k = 0; k < lists->size(); ++k) {
+                    double total = 0.0;
+                    const metadb_handle_list& items = (*lists)[k];
+                    // Cached info only: get_length() never opens the file. Thread-safe reads.
+                    for (std::size_t i = 0, n = items.get_count(); i < n; ++i) {
+                        const double l = items[i]->get_length();
+                        if (l > 0) total += l;
+                    }
+                    (*job)[k].length = total;
+                }
+            } catch (...) {
+                return;
+            }
+            lists.reset(); // release the handles here, not on the main thread
+            fb2k::inMainThread([job, positions = std::move(positions), keys = std::move(keys), descending, articles,
+                                t_start] {
+                apply_sort(positions, keys, *job, SortKey::length, descending, articles, t_start);
+            });
+        });
+    } catch (const std::exception& e) {
+        log::warn(std::string("sorting the playlists failed: ") + e.what());
     }
 }
 
@@ -614,6 +780,39 @@ void SwitcherCore::strip_structure_changed() noexcept {
     limits_changed();
 }
 
+std::size_t SwitcherCore::group_insert_pos(std::size_t playlist, std::uint8_t pin) const noexcept {
+    // Each group (start pins, unpinned, end pins) is in playlist order.
+    const std::size_t n = visible_.size();
+    std::size_t lo = 0;
+    std::size_t hi = pins_start_;
+    if (pin == 0) {
+        lo = pins_start_;
+        hi = n - pins_end_;
+    } else if (pin == 2) {
+        lo = n - pins_end_;
+        hi = n;
+    }
+    const auto first = visible_.begin() + static_cast<std::ptrdiff_t>(lo);
+    const auto last = visible_.begin() + static_cast<std::ptrdiff_t>(hi);
+    return static_cast<std::size_t>(std::lower_bound(first, last, playlist) - visible_.begin());
+}
+
+void SwitcherCore::insert_visible(std::size_t pos, std::size_t playlist, std::uint8_t pin) {
+    visible_.insert(visible_.begin() + static_cast<std::ptrdiff_t>(pos), playlist);
+    if (pin == 1) ++pins_start_;
+    if (pin == 2) ++pins_end_;
+}
+
+void SwitcherCore::erase_visible(std::size_t pos) noexcept {
+    const std::size_t n = visible_.size();
+    if (pos < pins_start_) {
+        --pins_start_;
+    } else if (pos >= n - pins_end_) {
+        --pins_end_;
+    }
+    visible_.erase(visible_.begin() + static_cast<std::ptrdiff_t>(pos));
+}
+
 void SwitcherCore::strip_playlist_created(std::size_t playlist) noexcept {
     const auto& entries = playlists::entries();
     if (playlist >= entries.size()) return rebuild_strip();
@@ -622,14 +821,17 @@ void SwitcherCore::strip_playlist_created(std::size_t playlist) noexcept {
             if (titles_follow_position()) return rebuild_strip(); // keyed: unchanged titles keep layouts
             update_label(playlist);
         }
-        auto it = std::lower_bound(visible_.begin(), visible_.end(), playlist);
-        for (auto j = it; j != visible_.end(); ++j) ++*j;
+        // Later playlists moved up by one, in every group.
+        for (std::size_t& v : visible_) {
+            if (v >= playlist) ++v;
+        }
         if (entries[playlist].hidden()) {
             strip_.set_active(strip_index_of_playlist(playlists::active()));
             return;
         }
-        const std::size_t pos = static_cast<std::size_t>(it - visible_.begin());
-        visible_.insert(it, playlist);
+        const std::uint8_t pin = entries[playlist].pin();
+        const std::size_t pos = group_insert_pos(playlist, pin);
+        insert_visible(pos, playlist, pin);
         strip_.insert_item(pos, make_item(playlist), strip_index_of_playlist(playlists::active()));
     } catch (...) {
         rebuild_strip();
@@ -640,13 +842,13 @@ void SwitcherCore::strip_playlist_removed(std::size_t playlist) noexcept {
     try {
         // Labels are keyed: the removed playlist's title stays until the map is pruned.
         if (format_titles() && labels_.size() > 2 * playlists::entries().size() + 16) prune_labels();
-        auto it = std::lower_bound(visible_.begin(), visible_.end(), playlist);
-        const bool was_visible = it != visible_.end() && *it == playlist;
-        const std::size_t pos = static_cast<std::size_t>(it - visible_.begin());
-        if (was_visible) it = visible_.erase(it);
-        for (auto j = it; j != visible_.end(); ++j) --*j;
+        const std::size_t pos = strip_index_of_playlist(playlist);
+        if (pos != no_index) erase_visible(pos);
+        for (std::size_t& v : visible_) {
+            if (v > playlist) --v;
+        }
         if (titles_follow_position()) return rebuild_strip();
-        if (was_visible) {
+        if (pos != no_index) {
             strip_.erase_item(pos, strip_index_of_playlist(playlists::active()));
         } else {
             strip_.set_active(strip_index_of_playlist(playlists::active()));
@@ -662,13 +864,10 @@ void SwitcherCore::strip_playlists_reordered() noexcept {
     if (titles_follow_position()) return rebuild_strip();
     const auto& entries = playlists::entries();
     try {
-        visible_.clear();
+        collect_visible();
         strip_keys_.clear();
-        for (std::size_t i = 0; i < entries.size(); ++i) {
-            if (entries[i].hidden()) continue;
-            visible_.push_back(i);
-            strip_keys_.push_back(entries[i].key);
-        }
+        strip_keys_.reserve(visible_.size());
+        for (const std::size_t i : visible_) strip_keys_.push_back(entries[i].key);
         if (strip_.reorder_items(strip_keys_, strip_index_of_playlist(playlists::active()))) return;
     } catch (...) {
     }
@@ -680,23 +879,40 @@ void SwitcherCore::strip_playlist_flags(std::size_t playlist) noexcept {
     if (playlist >= entries.size()) return rebuild_strip();
     try {
         const bool hidden = entries[playlist].hidden();
-        auto it = std::lower_bound(visible_.begin(), visible_.end(), playlist);
-        const bool present = it != visible_.end() && *it == playlist;
-        const std::size_t pos = static_cast<std::size_t>(it - visible_.begin());
-        if (hidden && present) {
-            visible_.erase(it);
-            strip_.erase_item(pos, strip_index_of_playlist(playlists::active()));
-        } else if (!hidden && !present) {
-            visible_.insert(it, playlist);
-            strip_.insert_item(pos, make_item(playlist), strip_index_of_playlist(playlists::active()));
+        const std::uint8_t pin = entries[playlist].pin();
+        std::size_t pos = strip_index_of_playlist(playlist);
+        if (pos != no_index) {
+            const std::uint8_t was = pos < pins_start_ ? 1 : (pos >= visible_.size() - pins_end_ ? 2 : 0);
+            if (!hidden && was == pin) return; // a lock: nothing on the strip changes
+            erase_visible(pos);
+            if (hidden) return strip_.erase_item(pos, strip_index_of_playlist(playlists::active()));
+            // Pinned or unpinned: the tab moves to its group by key (keeping its layout and
+            // selection), then gains or loses the pin icon.
+            const std::size_t to = group_insert_pos(playlist, pin);
+            insert_visible(to, playlist, pin);
+            strip_keys_.clear();
+            strip_keys_.reserve(visible_.size());
+            for (const std::size_t i : visible_) strip_keys_.push_back(entries[i].key);
+            if (!strip_.reorder_items(strip_keys_, strip_index_of_playlist(playlists::active()))) {
+                return rebuild_strip();
+            }
+            strip_relabel_at(to, playlist);
+            return;
         }
+        if (hidden) return;
+        pos = group_insert_pos(playlist, pin);
+        insert_visible(pos, playlist, pin);
+        strip_.insert_item(pos, make_item(playlist), strip_index_of_playlist(playlists::active()));
     } catch (...) {
         rebuild_strip();
     }
 }
 
 void SwitcherCore::strip_playlist_relabel(std::size_t playlist) noexcept {
-    const std::size_t pos = strip_index_of_playlist(playlist);
+    strip_relabel_at(strip_index_of_playlist(playlist), playlist);
+}
+
+void SwitcherCore::strip_relabel_at(std::size_t pos, std::size_t playlist) noexcept {
     if (pos == no_index) return;
     try {
         const int thickness = strip_.thickness();
@@ -1292,12 +1508,11 @@ void SwitcherCore::refresh_colours() noexcept {
         theme.dark = colours.dark;
         theme.active_fill = static_cast<float>(settings_.accent_strength) / 100.0f;
 
-        // The strip's own background: the host's (lifted in dark mode by the strip), a custom
-        // colour, or the panel with some accent mixed in. Light or dark follows what is drawn.
+        // The strip's own background: exactly the host's, a custom colour, or the panel with some
+        // accent mixed in. Light or dark follows what is drawn.
         std::uint32_t bg = colour::rgb_from_colorref(panel);
         if (settings_.strip_background == StripBackground::custom) {
             bg = settings_.background_argb & 0xFFFFFFu;
-            theme.lift = false;
             theme.dark = colour::lightness(bg) < colour::light_background_lightness;
         }
         const auto mix = [](std::uint32_t a, std::uint32_t b, float t) {
@@ -1323,15 +1538,11 @@ void SwitcherCore::refresh_colours() noexcept {
         accent = colour::with_min_contrast(accent, bg, colour::accent_min_contrast);
 
         if (settings_.strip_background == StripBackground::accent_tint) {
-            // Tint what the strip would have shown (dark mode's lift included), then make sure
-            // the accent still stands out from its own tint.
-            const std::uint32_t text = colour::rgb_from_colorref(theme.text);
-            const std::uint32_t base = theme.dark ? mix(text, bg, 0.04f) : bg;
-            bg = mix(accent, base, static_cast<float>(settings_.tint_strength) / 100.0f);
-            theme.lift = false;
+            // Tint the background, then make sure the accent still stands out from its own tint.
+            bg = mix(accent, bg, static_cast<float>(settings_.tint_strength) / 100.0f);
             accent = colour::with_min_contrast(accent, bg, colour::accent_min_contrast);
         }
-        if (!theme.lift) {
+        if (settings_.strip_background != StripBackground::theme) {
             theme.text = colour::colorref_from_rgb(
                 colour::with_min_contrast(colour::rgb_from_colorref(theme.text), bg, 4.5f));
         }
@@ -1436,6 +1647,7 @@ void SwitcherCore::on_strip_middle_click(std::size_t index) noexcept {
     case MiddleClick::remove_playlist:
         if (confirm_remove(playlist)) remove_playlist(playlist);
         break;
+    case MiddleClick::toggle_lock: toggle_lock(playlist); break;
     case MiddleClick::nothing:
     default: break;
     }
@@ -1446,6 +1658,40 @@ void SwitcherCore::on_strip_reorder(std::size_t from, std::size_t to) noexcept {
         // Next to the tab it was dropped on; hidden playlists in between keep their place.
         move_playlist(visible_[from], visible_[to]);
     } else {
+        rebuild_strip();
+    }
+}
+
+void SwitcherCore::on_strip_reorder_block(std::span<const std::size_t> moved, std::size_t neighbour,
+                                          bool before) noexcept {
+    try {
+        auto pm = playlist_manager::get();
+        const std::size_t count = pm->get_playlist_count();
+        if (neighbour >= visible_.size() || count != playlists::entries().size()) return rebuild_strip();
+        const std::size_t target = visible_[neighbour];
+        std::vector<bool> moving(count, false);
+        std::vector<t_size> block;
+        block.reserve(moved.size());
+        for (const std::size_t si : moved) {
+            if (si >= visible_.size() || visible_[si] == target || visible_[si] >= count) return rebuild_strip();
+            block.push_back(visible_[si]); // one group: ascending, as the strip shows them
+            moving[visible_[si]] = true;
+        }
+        // new[i] = old[order[i]]: the block goes next to the target; hidden playlists in between
+        // keep their place.
+        std::vector<t_size> order;
+        order.reserve(count);
+        for (std::size_t i = 0; i < count; ++i) {
+            if (moving[i]) continue;
+            if (i == target && before) order.insert(order.end(), block.begin(), block.end());
+            order.push_back(i);
+            if (i == target && !before) order.insert(order.end(), block.begin(), block.end());
+        }
+        bool same = true;
+        for (std::size_t i = 0; i < count && same; ++i) same = order[i] == i;
+        if (same) return rebuild_strip(); // the strip shows a gathered block: back to the real order
+        if (!pm->reorder(order.data(), count)) rebuild_strip();
+    } catch (...) {
         rebuild_strip();
     }
 }
@@ -1462,6 +1708,23 @@ void SwitcherCore::show_tab_menu(std::size_t strip_index, POINT screen, bool ful
         const std::size_t clicked = strip_index < snapshot.size() ? snapshot[strip_index] : SIZE_MAX;
         std::vector<std::size_t> hidden;
         bool our_lock = false;
+        // Commands on the clicked tab apply to the whole selection when it holds that tab.
+        std::vector<std::size_t> targets;
+        if (clicked != SIZE_MAX && strip_.is_selected(strip_index) && strip_.selection_count() >= 2) {
+            std::vector<std::size_t> selected;
+            strip_.selection(selected);
+            for (const std::size_t si : selected) {
+                if (si < snapshot.size()) targets.push_back(snapshot[si]);
+            }
+        }
+        if (targets.empty() && clicked != SIZE_MAX) targets.push_back(clicked);
+        const bool multi = targets.size() >= 2;
+        std::vector<std::uint64_t> target_keys;
+        for (const std::size_t p : targets) {
+            if (p < playlists::entries().size()) target_keys.push_back(playlists::entries()[p].key);
+        }
+        bool all_locked = false;
+        const bool side = settings_.position == StripPosition::left || settings_.position == StripPosition::right;
         if (!full) {
             // Chevron: the playlist list only (long lists in groups, append_long_list).
             std::vector<std::wstring> texts;
@@ -1475,12 +1738,72 @@ void SwitcherCore::show_tab_menu(std::size_t strip_index, POINT screen, bool ful
             append_long_list(menu, texts, menu_tab_base, menu_cmd_base - menu_tab_base, checked);
         } else {
             AppendMenuW(menu, MF_STRING, cmd_new, L"New playlist");
-            if (clicked != SIZE_MAX) {
+            const auto pin_menu = [&](std::uint8_t current, bool any_pinned) {
+                HMENU sub = CreatePopupMenu();
+                if (sub == nullptr) return;
+                const auto radio = [sub](UINT id, const wchar_t* text, bool on) {
+                    AppendMenuW(sub, MF_STRING | (on ? MF_CHECKED : 0), id, text);
+                    if (!on) return;
+                    MENUITEMINFOW mii{sizeof(mii)};
+                    mii.fMask = MIIM_FTYPE;
+                    mii.fType = MFT_STRING | MFT_RADIOCHECK;
+                    SetMenuItemInfoW(sub, id, FALSE, &mii);
+                };
+                radio(cmd_pin_start, side ? L"Pin to the top" : L"Pin to the left", current == 1);
+                radio(cmd_pin_end, side ? L"Pin to the bottom" : L"Pin to the right", current == 2);
+                AppendMenuW(sub, MF_STRING | (any_pinned ? 0 : MF_GRAYED), cmd_unpin, L"Unpin");
+                AppendMenuW(menu, MF_POPUP, reinterpret_cast<UINT_PTR>(sub), multi ? L"Pin tabs" : L"Pin tab");
+            };
+            const auto sort_menu = [&] {
+                HMENU sub = CreatePopupMenu();
+                if (sub == nullptr) return;
+                const UINT few = (multi ? targets.size() : playlists::entries().size()) < 2 ? MF_GRAYED : 0;
+                AppendMenuW(sub, MF_STRING | few, cmd_sort_name, L"By name");
+                AppendMenuW(sub, MF_STRING | few, cmd_sort_size, L"By number of tracks");
+                AppendMenuW(sub, MF_STRING | few, cmd_sort_length, L"By total length");
+                AppendMenuW(sub, MF_SEPARATOR, 0, nullptr);
+                AppendMenuW(sub, MF_STRING | (settings_.sort_descending ? MF_CHECKED : 0), cmd_sort_descending,
+                            L"Descending");
+                AppendMenuW(sub, MF_STRING | (settings_.sort_ignore_articles ? MF_CHECKED : 0), cmd_sort_articles,
+                            L"Ignore \"a\", \"an\" and \"the\" in names");
+                AppendMenuW(menu, MF_POPUP, reinterpret_cast<UINT_PTR>(sub),
+                            multi ? L"Sort selected playlists" : L"Sort playlists");
+            };
+            if (multi) {
+                // The selection: commands that make sense for several playlists at once.
+                bool any_removable = false;
+                bool any_pinned = false;
+                std::uint8_t common_pin = playlists::entries()[targets.front()].pin();
+                all_locked = true;
+                for (const std::size_t p : targets) {
+                    any_removable = any_removable || playlist_allows(p, playlist_lock::filter_remove_playlist);
+                    const std::uint8_t pin = playlists::entries()[p].pin();
+                    any_pinned = any_pinned || pin != 0;
+                    if (pin != common_pin) common_pin = 0;
+                    all_locked = all_locked && playlists::has_user_lock(p);
+                }
+                const std::wstring count = std::to_wstring(targets.size());
+                const bool all = targets.size() >= playlists::entries().size();
+                AppendMenuW(menu, MF_STRING | (any_removable && !all ? 0 : MF_GRAYED), cmd_remove,
+                            (L"Remove " + count + L" playlists").c_str());
+                AppendMenuW(menu, MF_SEPARATOR, 0, nullptr);
+                AppendMenuW(menu, MF_STRING | (all_locked ? MF_CHECKED : 0), cmd_lock, L"Lock playlists");
+                AppendMenuW(menu, MF_SEPARATOR, 0, nullptr);
+                AppendMenuW(menu, MF_STRING | (targets.size() >= snapshot.size() ? MF_GRAYED : 0), cmd_hide,
+                            (L"Hide " + count + L" tabs").c_str());
+                pin_menu(common_pin, any_pinned);
+                sort_menu();
+                AppendMenuW(menu, MF_STRING, cmd_clear_selection, L"Clear selection");
+            } else if (clicked != SIZE_MAX) {
                 auto pm = playlist_manager::get();
-                const bool side =
-                    settings_.position == StripPosition::left || settings_.position == StripPosition::right;
-                const UINT first = strip_index == 0 ? MF_GRAYED : 0;
-                const UINT last = strip_index + 1 >= snapshot.size() ? MF_GRAYED : 0;
+                // Moves stay inside the tab's group (pinned to the start, unpinned, pinned to the end).
+                const std::uint8_t pin = playlists::entries()[clicked].pin();
+                const auto group_of = [&](std::size_t si) {
+                    return si < snapshot.size() ? playlists::entries()[snapshot[si]].pin() : std::uint8_t{255};
+                };
+                const UINT first = strip_index == 0 || group_of(strip_index - 1) != pin ? MF_GRAYED : 0;
+                const UINT last = strip_index + 1 >= snapshot.size() || group_of(strip_index + 1) != pin ? MF_GRAYED : 0;
+
                 const UINT no_rename = playlist_allows(clicked, playlist_lock::filter_rename) ? 0 : MF_GRAYED;
                 const UINT no_remove =
                     playlist_allows(clicked, playlist_lock::filter_remove_playlist) && playlists::entries().size() > 1
@@ -1507,7 +1830,10 @@ void SwitcherCore::show_tab_menu(std::size_t strip_index, POINT screen, bool ful
                 AppendMenuW(menu, MF_STRING | (snapshot.size() < 2 ? MF_GRAYED : 0), cmd_hide, L"Hide tab");
                 AppendMenuW(menu, MF_STRING | first, cmd_move_back, side ? L"Move up" : L"Move left");
                 AppendMenuW(menu, MF_STRING | last, cmd_move_forward, side ? L"Move down" : L"Move right");
+                pin_menu(pin, pin != 0);
+                sort_menu();
             }
+            if (clicked == SIZE_MAX) sort_menu();
             if (clicked == SIZE_MAX) AppendMenuW(menu, MF_STRING, cmd_load, L"Load playlist...");
             if (clicked == SIZE_MAX && perf::enabled()) {
                 // Only with the performance log on: a quick way to measure with many playlists.
@@ -1547,7 +1873,73 @@ void SwitcherCore::show_tab_menu(std::size_t strip_index, POINT screen, bool ful
             if (h < hidden.size() && same) set_playlist_hidden(hidden[h], false);
         } else if (cmd >= menu_cmd_base && cmd < menu_unhide_base) {
             const bool valid = clicked != SIZE_MAX && same;
-            switch (cmd) {
+            // The targets now, by key: an earlier one going away shifts the later ones.
+            const auto each_target = [&](auto&& action) {
+                for (const std::uint64_t key : target_keys) {
+                    const std::size_t p = playlists::index_of_key(key);
+                    if (p != SIZE_MAX) action(p);
+                }
+            };
+            bool handled = false;
+            if (multi && valid) {
+                handled = true;
+                switch (cmd) {
+                case cmd_remove: {
+                    // Highest index first, so the others stay where they are meanwhile.
+                    std::vector<std::size_t> now;
+                    each_target([&](std::size_t p) { now.push_back(p); });
+                    std::sort(now.rbegin(), now.rend());
+                    for (const std::size_t p : now) remove_playlist(p);
+                    strip_.clear_selection();
+                    break;
+                }
+                case cmd_lock: {
+                    bool refused = false;
+                    each_target([&](std::size_t p) {
+                        if (playlists::has_user_lock(p) == !all_locked) return;
+                        if (!playlists::set_user_lock(p, !all_locked)) refused = true;
+                    });
+                    if (refused) MessageBeep(MB_ICONWARNING);
+                    break;
+                }
+                case cmd_hide:
+                    each_target([&](std::size_t p) { set_playlist_hidden(p, true); });
+                    strip_.clear_selection();
+                    break;
+                case cmd_pin_start:
+                case cmd_pin_end:
+                case cmd_unpin: {
+                    const auto pin = static_cast<std::uint8_t>(cmd == cmd_pin_start ? 1 : cmd == cmd_pin_end ? 2 : 0);
+                    each_target([&](std::size_t p) { (void)playlists::set_pin(p, pin); });
+                    break;
+                }
+                case cmd_sort_name:
+                case cmd_sort_size:
+                case cmd_sort_length: {
+                    const SortKey key = cmd == cmd_sort_name   ? SortKey::name
+                                        : cmd == cmd_sort_size ? SortKey::size
+                                                               : SortKey::length;
+                    sort_playlists(key, targets);
+                    break;
+                }
+                default: handled = false; break;
+                }
+            }
+            switch (handled ? 0u : cmd) {
+            case cmd_pin_start:
+            case cmd_pin_end:
+            case cmd_unpin:
+                if (valid) {
+                    const auto pin = static_cast<std::uint8_t>(cmd == cmd_pin_start ? 1 : cmd == cmd_pin_end ? 2 : 0);
+                    (void)playlists::set_pin(clicked, pin);
+                }
+                break;
+            case cmd_sort_name: sort_playlists(SortKey::name, {}); break;
+            case cmd_sort_size: sort_playlists(SortKey::size, {}); break;
+            case cmd_sort_length: sort_playlists(SortKey::length, {}); break;
+            case cmd_sort_descending: settings_.sort_descending = !settings_.sort_descending; break;
+            case cmd_sort_articles: settings_.sort_ignore_articles = !settings_.sort_ignore_articles; break;
+            case cmd_clear_selection: strip_.clear_selection(); break;
             case cmd_new: new_playlist(valid ? clicked + 1 : SIZE_MAX); break;
             case cmd_rename:
                 if (valid) rename_playlist(clicked);
@@ -1828,6 +2220,8 @@ void SwitcherCore::append_style_menu(HMENU menu) const noexcept {
     if (HMENU m = sub(L"Active tab"); m != nullptr) {
         radio(m, style_indicator_underline, L"Underline", s.indicator == Indicator::underline);
         radio(m, style_indicator_pill, L"Pill", s.indicator == Indicator::pill);
+        radio(m, style_indicator_tab, L"Tab", s.indicator == Indicator::tab);
+        radio(m, style_indicator_tab_outline, L"Outlined tab", s.indicator == Indicator::tab_outline);
         radio(m, style_indicator_none, L"Text only", s.indicator == Indicator::none);
         AppendMenuW(m, MF_SEPARATOR, 0, nullptr);
         AppendMenuW(m, MF_STRING | (s.chip ? MF_CHECKED : 0), style_chip, L"Chips");
@@ -1840,7 +2234,9 @@ void SwitcherCore::append_style_menu(HMENU menu) const noexcept {
     }
     if (HMENU m = sub(L"Accent strength"); m != nullptr) {
         // Opacity of the active tab's fill; the underline is always solid.
-        const UINT grey = s.indicator == Indicator::pill || s.chip ? 0 : MF_GRAYED;
+        const bool fill = s.indicator == Indicator::pill || s.indicator == Indicator::tab ||
+                          s.indicator == Indicator::tab_outline || s.chip;
+        const UINT grey = fill ? 0 : MF_GRAYED;
         const auto level = [&](unsigned id, const wchar_t* text, bool on) {
             radio(m, id, text, on);
             if (grey != 0) EnableMenuItem(m, id, MF_BYCOMMAND | MF_GRAYED);
@@ -1883,6 +2279,7 @@ void SwitcherCore::append_style_menu(HMENU menu) const noexcept {
               s.visibility == StripVisibility::two_or_more);
         radio(m, style_show_auto_hide, L"Auto-hide", s.visibility == StripVisibility::auto_hide);
     }
+    AppendMenuW(style, MF_STRING | (s.pin_icon ? MF_CHECKED : 0), style_pin_icon, L"Pin icon on pinned tabs");
     AppendMenuW(menu, MF_POPUP, reinterpret_cast<UINT_PTR>(style), L"Appearance");
 }
 
@@ -1899,6 +2296,14 @@ void SwitcherCore::run_style_command(unsigned command) noexcept {
     case style_indicator_underline: s.indicator = Indicator::underline; break;
     case style_indicator_pill: s.indicator = Indicator::pill; break;
     case style_indicator_none: s.indicator = Indicator::none; break;
+    case style_indicator_tab: s.indicator = Indicator::tab; break;
+    case style_indicator_tab_outline: s.indicator = Indicator::tab_outline; break;
+    case style_pin_icon:
+        s.pin_icon = !s.pin_icon;
+        apply_settings();
+        rebuild_strip(); // the icons are part of the items
+        strip_structure_changed();
+        return;
     case style_chip: s.chip = !s.chip; break;
     case style_accent_selection: s.accent_source = AccentSource::selection; break;
     case style_accent_cover: s.accent_source = AccentSource::cover; break;

@@ -14,6 +14,7 @@
 #include <d2d1.h>
 #include <dwrite.h>
 
+#include <algorithm>
 #include <cstddef>
 #include <cstdint>
 #include <span>
@@ -29,7 +30,7 @@
 namespace ept {
 
 struct StripTheme {
-    //! The panel background; the strip is drawn on it (lifted slightly in dark mode).
+    //! The strip's background, drawn as is.
     COLORREF background{RGB(255, 255, 255)};
     COLORREF text{RGB(0, 0, 0)};
     //! Already made legible against the background by the host.
@@ -40,9 +41,6 @@ struct StripTheme {
     //! own light colour. The strip moves from `accent` to this as the fill gets stronger.
     COLORREF fill_accent{CLR_INVALID};
     bool dark{false};
-    //! Lift the strip slightly off a dark background (the UI background only; a custom or
-    //! tinted strip background is used as given).
-    bool lift{true};
     //! Opacity of the active tab's accent fill (pill, chip), 0 = the automatic look.
     float active_fill{0.0f};
     [[nodiscard]] bool operator==(const StripTheme&) const = default;
@@ -89,6 +87,9 @@ struct StripItem {
     //! Shown on hover when the label is clipped or empty, or when it differs from the label.
     //! Empty = the label (no copy needed for the usual case).
     std::wstring tooltip;
+    //! 0 = not pinned, 1 = pinned to the start, 2 = pinned to the end. The host hands the tabs in
+    //! groups: start pins first, end pins last. Pinned tabs never go to the overflow chevron.
+    std::uint8_t pin{0};
     [[nodiscard]] bool operator==(const StripItem&) const = default;
     //! Same text layouts (label and icon); the tooltip and key do not matter.
     [[nodiscard]] bool same_look(const StripItem& o) const noexcept {
@@ -120,6 +121,10 @@ public:
     //! A drag moved tab `from` to position `to` (strip indices, both before the move). The strip
     //! already shows the new order; the host makes it real and sends the tabs again.
     virtual void on_strip_reorder(std::size_t from, std::size_t to) noexcept = 0;
+    //! A drag moved the selected tabs `moved` (strip indices before the drag, ascending, one
+    //! group) as a block next to tab `neighbour` (before it, or after it if !before).
+    virtual void on_strip_reorder_block(std::span<const std::size_t> moved, std::size_t neighbour,
+                                        bool before) noexcept = 0;
     //! The pointer entered or left the strip, mouse capture or keyboard focus changed. Auto-hide
     //! re-evaluates on it; nothing else needs it.
     virtual void on_strip_pointer() noexcept {}
@@ -159,6 +164,18 @@ public:
     //! changed) if the keys are not a permutation of the current ones: use set_items().
     bool reorder_items(std::span<const std::uint64_t> keys, std::size_t active) noexcept;
     [[nodiscard]] std::size_t item_count() const noexcept { return items_.size(); }
+    //! Multiple selection (Ctrl+click toggles a tab, Shift+click selects a range, a plain click
+    //! clears it). Kept by key across set_items() and reorders; never includes the chevron.
+    [[nodiscard]] std::size_t selection_count() const noexcept { return selected_count_; }
+    [[nodiscard]] bool is_selected(std::size_t index) const noexcept {
+        return index < items_.size() && items_[index].selected;
+    }
+    //! Selected tabs in strip order.
+    void selection(std::vector<std::size_t>& out) const;
+    void clear_selection() noexcept;
+    //! The glyph for a pinned tab's icon in the system icon font (a pin), or an emoji pin where the
+    //! icon font has none (Windows 7).
+    [[nodiscard]] static const std::wstring& pin_glyph() noexcept;
     //! The tab at `index` as last given, or nullptr.
     [[nodiscard]] const StripItem* item(std::size_t index) const noexcept {
         return index < items_.size() ? &items_[index].spec : nullptr;
@@ -243,6 +260,8 @@ private:
         int icon_height{0};
         //! Space between the icon and the label (0 without either).
         int icon_gap{0};
+        //! In the multiple selection.
+        bool selected{false};
         //! Built for this font/DPI generation; a newer generation rebuilds the layouts.
         unsigned generation{0};
         [[nodiscard]] int content_width() const noexcept { return icon_width + icon_gap + text_width; }
@@ -257,12 +276,26 @@ private:
     void on_size(int width, int height) noexcept;
     void on_mouse_move(POINT pt) noexcept;
     void on_mouse_leave() noexcept;
-    void on_button_down(POINT pt) noexcept;
-    void on_double_click(POINT pt) noexcept;
+    //! `keys`: the MK_* flags of the mouse message.
+    void on_button_down(POINT pt, WPARAM keys) noexcept;
+    void on_double_click(POINT pt, WPARAM keys) noexcept;
+    //! Ctrl / Shift + click on tab `index`. True if it changed the selection (no activation then).
+    bool select_click(std::size_t index, WPARAM keys) noexcept;
+    void set_selected(std::size_t index, bool selected) noexcept;
+    //! Recounts selected_count_ after the items changed shape.
+    void recount_selection() noexcept;
     void on_button_up(POINT pt) noexcept;
     void on_middle_up(POINT pt) noexcept;
     void drag_to(POINT pt) noexcept;
     void end_drag(bool commit) noexcept;
+    //! Esc: ends a drag without moving anything and releases the press.
+    void cancel_drag() noexcept;
+    //! A drag starting on a selected tab: gathers the selected tabs of its group at it. False
+    //! (nothing changed) for a single-tab drag.
+    bool begin_block_drag() noexcept;
+    void block_drag_to(int pos) noexcept;
+    //! Puts the tabs back in drag_keys_ order (a cancelled block drag).
+    void restore_drag_order() noexcept;
     //! Moves item `from` to `to`, keeping the active and hover marks on their tabs.
     void move_item(std::size_t from, std::size_t to) noexcept;
     void ensure_tooltip() noexcept;
@@ -302,6 +335,12 @@ private:
     [[nodiscard]] int capped_width(const Item& item) const noexcept;
 
     void draw_tab(std::size_t index) noexcept;
+    //! The indicator is a tab (Indicator::tab, tab_outline): fills run on to the panel edge.
+    [[nodiscard]] bool tab_shape() const noexcept;
+    //! Stroke of the outlined tab: 1.5 DIPs in whole pixels.
+    [[nodiscard]] float outline_width() const noexcept {
+        return static_cast<float>((std::max)(1, MulDiv(3, static_cast<int>(dpi_), 192)));
+    }
     void draw_chevron() noexcept;
     //! Opacity of the active tab's accent fill (pill or chip).
     [[nodiscard]] float active_fill_alpha() const noexcept;
@@ -354,6 +393,10 @@ private:
 
     std::size_t active_{no_index};
     std::size_t hover_{no_index};
+    std::size_t selected_count_{0};
+    //! Where a Shift+click range starts: the key of the tab last clicked (0 = the active tab).
+    std::uint64_t anchor_key_{0};
+    std::size_t anchor_index_{no_index};
     bool tracking_{false};
     bool focused_{false};
     bool hide_focus_{true};
@@ -368,8 +411,18 @@ private:
     bool dragging_{false};
     std::size_t drag_origin_{no_index};
     std::size_t drag_index_{no_index};
-    //! Where in the dragged tab it was grabbed (pixels along the strip from its start).
+    //! Where in the dragged tab it was grabbed (pixels along the strip from its start; from the
+    //! block's start in a block drag).
     int drag_grab_{0};
+    //! Block drag: the block is drag_block_ tabs from drag_first_ (0: a single-tab drag).
+    std::size_t drag_block_{0};
+    std::size_t drag_first_{0};
+    //! Block drag: the order before it, and the moved tabs' indices in it.
+    std::vector<std::uint64_t> drag_keys_;
+    std::vector<std::size_t> drag_moved_;
+    std::uint64_t drag_key_{0}; //!< the grabbed tab
+    //! A plain press on a selected tab: the selection ends on release, unless it was dragged.
+    bool clear_on_release_{false};
 
     bool switching_{false};
     std::size_t switch_from_{no_index};

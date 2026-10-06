@@ -16,12 +16,15 @@ enum class TabAlign : std::uint8_t { start, centre, end };
 //! Which end of the strip the overflow chevron sits at.
 enum class ChevronPosition : std::uint8_t { end, start };
 enum class StripVisibility : std::uint8_t { always, never, two_or_more, auto_hide };
-enum class Indicator : std::uint8_t { underline, pill, none };
+//! tab: a fill that runs down to the edge facing the panel (rounded on the far side only), so the
+//! active tab reads as joined to the playlist. tab_outline: the same shape as a faint fill with a
+//! solid outline on its three free sides. New values go at the end: the codec stores the number.
+enum class Indicator : std::uint8_t { underline, pill, none, tab, tab_outline };
 enum class AccentSource : std::uint8_t { selection, custom, cover };
 enum class StripBackground : std::uint8_t { theme, custom, accent_tint };
 //! What a middle click on a tab does. remove_playlist goes through the playlist manager, so the
 //! playlist can be brought back with File > Restore playlist.
-enum class MiddleClick : std::uint8_t { nothing, hide_tab, remove_playlist };
+enum class MiddleClick : std::uint8_t { nothing, hide_tab, remove_playlist, toggle_lock };
 //! What a double click on a tab does.
 enum class TabDoubleClick : std::uint8_t { nothing, rename };
 //! The name of a playlist made by dropping files on empty strip space.
@@ -95,6 +98,12 @@ struct Settings {
     DropName drop_name{DropName::folder};
     //! When playback starts, activate the playlist it plays from.
     bool follow_playing{false};
+    //! Pinned tabs show a pin glyph before their title.
+    bool pin_icon{true};
+    //! Sorting playlists: largest / Z first.
+    bool sort_descending{false};
+    //! Sorting by name skips a leading "a", "an" or "the".
+    bool sort_ignore_articles{true};
 
     // Auto-hide.
     std::uint16_t hot_zone{6};

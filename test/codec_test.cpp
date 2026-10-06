@@ -35,7 +35,7 @@ Settings odd_settings() {
     s.spacing = 0;
     s.thickness = 40;
     s.visibility = StripVisibility::auto_hide;
-    s.indicator = Indicator::pill;
+    s.indicator = Indicator::tab_outline;
     s.accent_source = AccentSource::custom;
     s.accent_argb = 0xFF102030u;
     s.corner_radius = 9;
@@ -43,7 +43,10 @@ Settings odd_settings() {
     s.animations = false;
     s.animation_ms = 220;
     s.wheel_cycles = false;
-    s.middle_click = MiddleClick::remove_playlist;
+    s.middle_click = MiddleClick::toggle_lock;
+    s.pin_icon = false;
+    s.sort_descending = true;
+    s.sort_ignore_articles = false;
     s.drag_reorder = false;
     s.hot_zone = 8;
     s.reveal_delay_ms = 150;

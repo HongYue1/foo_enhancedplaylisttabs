@@ -148,6 +148,69 @@ int main() {
         check(l.overflow, "shrink: off without a floor");
     }
     {
+        // Pinned tabs stay on screen when the tabs overflow: the first two at the start, the last
+        // one next to the chevron at the end; only the tabs between them scroll.
+        std::vector<int> many(20, 60);
+        StripLayoutInput in;
+        in.length = 400;
+        in.spacing = 2;
+        in.chevron = 24;
+        in.extents = many;
+        in.active = 12;
+        in.pinned_start = 2;
+        in.pinned_end = 1;
+        StripLayout l;
+        layout_strip(in, l);
+        check(l.overflow && l.pinned_start == 2 && l.pinned_end == 1, "pins: overflow with pins");
+        check(l.tabs[0] == Span{0, 60} && l.tabs[1] == Span{62, 60}, "pins: start pins lead");
+        check(l.first >= 2 && l.first <= 12 && 12 < l.last && l.last <= 19, "pins: active in the window");
+        check(l.tabs[19].length == 60 && l.tabs[19].end() <= 400 - 24 - 2, "pins: end pin before the chevron");
+        check(l.tabs[19].start > l.tabs[l.last - 1].end(), "pins: end pin after the window");
+        bool sorted = true;
+        for (std::size_t i = 1; i < many.size(); ++i) sorted = sorted && l.tabs[i].start >= l.tabs[i - 1].start;
+        check(sorted, "pins: starts never decrease");
+        check(hit_test_strip(l, 30) == 0 && hit_test_strip(l, l.tabs[19].start + 5) == 19 &&
+                  hit_test_strip(l, l.tabs[12].start + 5) == 12,
+              "pins: hit test finds pins and the window");
+        check(l.shows(0) && l.shows(19) && l.shows(12) && !l.shows(l.last), "pins: shows()");
+        std::size_t lo = 0, hi = 0;
+        l.group_of(1, lo, hi);
+        check(lo == 0 && hi == 2, "pins: start group");
+        l.group_of(19, lo, hi);
+        check(lo == 19 && hi == 20, "pins: end group");
+        l.group_of(12, lo, hi);
+        check(lo == l.first && hi == l.last, "pins: window group");
+
+        // An active pinned tab does not drag the window anywhere.
+        in.active = 0;
+        layout_strip(in, l);
+        check(l.first == 2 && l.tabs[19].length == 60, "pins: active pin, window from the start");
+
+        // The chevron at the start: pins sit right after it.
+        in.chevron_position = ChevronPosition::start;
+        layout_strip(in, l);
+        check(l.chevron == Span{0, 24} && l.tabs[0].start == 26 && l.tabs[19].end() <= 400, "pins: chevron first");
+
+        // Pins only, no room for the window: nothing else is forced in.
+        std::vector<int> wide = {150, 150, 150, 150};
+        in.extents = wide;
+        in.length = 320;
+        in.chevron_position = ChevronPosition::end;
+        in.pinned_start = 1;
+        in.pinned_end = 1;
+        in.active = 0;
+        layout_strip(in, l);
+        check(l.first == l.last && l.tabs[0].length == 150 && l.tabs[3].length == 142, "pins: pins first, clipped last");
+
+        // Without overflow pins change nothing.
+        in.extents = three;
+        in.length = 400;
+        layout_strip(in, l);
+        check(!l.overflow && l.tabs[2] == Span{134, 60} && l.shows(1), "pins: no overflow, same layout");
+        l.group_of(1, lo, hi);
+        check(lo == 1 && hi == 2, "pins: unpinned group without overflow");
+    }
+    {
         // Reusing the output does not reallocate once grown.
         std::vector<int> many(20, 60);
         StripLayoutInput in;

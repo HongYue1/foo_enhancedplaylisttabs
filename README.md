@@ -20,14 +20,22 @@
 - **One strip, no stacked rows.** Tabs that do not fit go to an overflow chevron, and the active tab
   is always kept in view. Titles can be shortened to fit before the chevron appears.
 - **Strip on any side.** Top, bottom, left or right. Side strips can rotate their titles.
-- **Look.** Underline, pill or text-only indicator, optional chips, corner radius, tab width (fit the
+- **Look.** Underline, pill, tab, outlined tab or text-only indicator, optional chips, corner radius, tab width (fit the
   title, all equal or fill the strip) and alignment, padding and spacing.
 - **Accent colour** from the UI selection colour, a custom colour, or the playing track's cover. The
   strip background can follow the UI, be custom, or be tinted with the accent.
 - **Titles** are the playlist's name or title formatting, with fields such as `%size%`, `%length%`,
   `%index%`, `%is_playing%` and `%lock_name%`. They update live.
-- **Playlist commands** on the tab: new, rename, duplicate, remove, save, load, lock, hide, move.
-- **Drag and drop.** Drag tabs to reorder them. Drop files on a tab to add them to that playlist, or
+- **Playlist commands** on the tab: new, rename, duplicate, remove, save, load, lock, hide, move,
+  pin, sort.
+- **Pinned tabs** stay at the left or right end (top or bottom on side strips) and are always shown,
+  outside the overflow.
+- **Multi-select.** Ctrl+click and Shift+click select several tabs to remove, lock, hide, pin, sort
+  or drag them together.
+- **Sorting** by name (natural order, optionally ignoring "a", "an", "the"), number of tracks or
+  total length, ascending or descending.
+- **Drag and drop.** Drag tabs to reorder them; dragging a selected tab moves the whole selection.
+  Tabs stay in their group: pinned tabs reorder among themselves and never mix with the others. Drop files on a tab to add them to that playlist, or
   on empty space for a new playlist named after the folder. Hovering a tab during a drag switches to
   it.
 - **Switching.** Click, mouse wheel, Ctrl+Tab / Ctrl+Shift+Tab, the chevron list, or automatically
@@ -79,24 +87,39 @@ Right-click a tab:
 | Load playlist... | Loads a playlist file into a new playlist |
 | Lock playlist | Stops tracks from being added, removed or reordered and the playlist from being renamed or removed. Double-click still plays. Kept across restarts. A playlist locked by another component shows **Locked by *name*...** instead |
 | Hide tab | Hides the tab; the playlist stays |
+| Pin tab | Pins the tab to the left or right (top or bottom on side strips), or unpins it. Kept across restarts |
+| Sort playlists | Sorts all playlists by name, number of tracks or total length; **Descending** and **Ignore "a", "an", "the"** are options. Pinned tabs stay in their group |
 | Move left / right | Reorders (up / down on side strips) |
 | Show hidden tab | Brings a hidden tab back |
 | Appearance | Strip position, active tab, accent colour and strength, strip background, tab width, show strip |
 | Configure... | The full settings dialog |
 
-Commands a lock does not allow are greyed out. Right-click empty strip space for **New playlist**,
-**Load playlist...**, **Show hidden tab**, **Appearance** and **Configure...**. The chevron opens the
+Commands a lock does not allow are greyed out. Right-click a selected tab (see below) for commands
+on all selected playlists: remove, lock, hide, pin, sort the selected playlists among themselves, and
+clear the selection. Right-click empty strip space for **New playlist**, **Load playlist...**,
+**Sort playlists**, **Show hidden tab**, **Appearance** and **Configure...**.
+
+Pinned tabs sit outside the overflow: with the chevron at the end the strip is *left pins, the tabs
+that fit, right pins, chevron*; with the chevron at the start it is *chevron, left pins, the tabs that
+fit, right pins*. Tabs can only be dragged within their group (left pins, unpinned, right pins); a
+dragged selection moves the selected tabs of the grabbed tab's group.
+**Appearance > Pin icon on pinned tabs** shows or hides the pin. The chevron opens the
 list of playlists; long lists are grouped in submenus of 25.
 
 ### Mouse and keyboard
 
-- **Click** a tab to activate its playlist. **Double-click** a tab to rename it (optional) or empty
+- **Click** a tab to activate its playlist. **Ctrl+click** adds or removes a tab from the selection
+  (the first one brings the active tab along); **Shift+click** selects a range. A plain click on a
+  tab or on empty strip space, or **Esc** (while the strip has the keyboard focus, which a Ctrl or
+  Shift+click gives it), clears the selection. **Double-click** a tab to rename it (optional) or empty
   space for a new playlist.
-- **Middle click** does nothing, hides the tab or removes the playlist (your choice). Removing a
+- **Middle click** does nothing, hides the tab, removes the playlist or locks / unlocks it (your
+  choice). Removing a
   playlist that has tracks asks first, unless you turn that off.
 - **Mouse wheel** over the strip switches to the previous or next tab.
 - **Ctrl+Tab / Ctrl+Shift+Tab** cycle the tabs while the keyboard focus is inside the element.
-- **Drag** a tab to reorder it, or drag files and tracks onto the strip.
+- **Drag** a tab to reorder it, or drag files and tracks onto the strip. Dragging a selected tab
+  gathers the selected tabs of its group next to it and moves them as one block; **Esc** cancels.
 
 ### Configure dialog
 
@@ -106,7 +129,7 @@ resets them.
 | Page | What is in it |
 | --- | --- |
 | Strip | Position (top, bottom, left, right); thickness in DIPs (0 = from the font); rotate text on side strips; tab width (fit the title, all equal, fill the strip) and alignment; overflow chevron at the end or the start; shorten titles to fit before showing the chevron; longest title before the ellipsis; padding and spacing |
-| Look | Indicator (underline, pill, text only), chips, corner radius, fill strength; accent (UI selection colour, custom, from the playing cover); strip background (UI background, custom, tinted with the accent) and tint strength |
+| Look | Indicator (underline, pill, tab, outlined tab, text only), chips, corner radius, fill strength; accent (UI selection colour, custom, from the playing cover); strip background (UI background, custom, tinted with the accent) and tint strength |
 | Titles | The playlist's name or title formatting, with a live preview, examples, the list of fields and **Functions** for the full title formatting reference |
 | Behaviour | Show the strip (always, only with two or more playlists, auto-hide, never); animate switches; mouse wheel; drag to reorder; Ctrl+Tab; middle click and whether removing asks first; double-click on empty space and on a tab; what dropping on empty space names the new playlist; switch to the playing playlist when playback starts |
 | Auto-hide | Reveal over the playlist (fastest) or push it aside; animation (none, slide, fade) and length; hot zone size; delays before showing and hiding; how long the strip stays after a switch |

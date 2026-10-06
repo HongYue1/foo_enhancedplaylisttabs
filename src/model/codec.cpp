@@ -216,6 +216,9 @@ enum SettingId : std::uint16_t {
     s_follow_playing = 44,
     s_drop_name = 45,
     s_confirm_remove = 46,
+    s_pin_icon = 47,
+    s_sort_descending = 48,
+    s_sort_ignore_articles = 49,
 };
 
 void write_settings(Writer& w, const Settings& s) {
@@ -260,6 +263,9 @@ void write_settings(Writer& w, const Settings& s) {
     field_u8(w, s_follow_playing, s.follow_playing ? 1 : 0);
     field_u8(w, s_drop_name, static_cast<std::uint8_t>(s.drop_name));
     field_u8(w, s_confirm_remove, s.confirm_remove ? 1 : 0);
+    field_u8(w, s_pin_icon, s.pin_icon ? 1 : 0);
+    field_u8(w, s_sort_descending, s.sort_descending ? 1 : 0);
+    field_u8(w, s_sort_ignore_articles, s.sort_ignore_articles ? 1 : 0);
 }
 
 //! Returns false for an id this build does not know.
@@ -274,7 +280,7 @@ bool read_setting(Settings& s, std::uint16_t id, std::span<const std::uint8_t> v
     case s_spacing: read_u16(v, s.spacing); return true;
     case s_thickness: read_u16(v, s.thickness); return true;
     case s_visibility: read_enum(v, s.visibility, StripVisibility::auto_hide); return true;
-    case s_indicator: read_enum(v, s.indicator, Indicator::none); return true;
+    case s_indicator: read_enum(v, s.indicator, Indicator::tab_outline); return true;
     case s_accent_source: read_enum(v, s.accent_source, AccentSource::cover); return true;
     case s_accent_argb: read_u32(v, s.accent_argb); return true;
     case s_corner_radius: read_u16(v, s.corner_radius); return true;
@@ -282,7 +288,7 @@ bool read_setting(Settings& s, std::uint16_t id, std::span<const std::uint8_t> v
     case s_animations: read_bool(v, s.animations); return true;
     case s_animation_ms: read_u16(v, s.animation_ms); return true;
     case s_wheel: read_bool(v, s.wheel_cycles); return true;
-    case s_middle_click: read_enum(v, s.middle_click, MiddleClick::remove_playlist); return true;
+    case s_middle_click: read_enum(v, s.middle_click, MiddleClick::toggle_lock); return true;
     case s_drag: read_bool(v, s.drag_reorder); return true;
     case s_hot_zone: read_u16(v, s.hot_zone); return true;
     case s_reveal_delay: read_u16(v, s.reveal_delay_ms); return true;
@@ -308,6 +314,9 @@ bool read_setting(Settings& s, std::uint16_t id, std::span<const std::uint8_t> v
     case s_follow_playing: read_bool(v, s.follow_playing); return true;
     case s_drop_name: read_enum(v, s.drop_name, DropName::autoname); return true;
     case s_confirm_remove: read_bool(v, s.confirm_remove); return true;
+    case s_pin_icon: read_bool(v, s.pin_icon); return true;
+    case s_sort_descending: read_bool(v, s.sort_descending); return true;
+    case s_sort_ignore_articles: read_bool(v, s.sort_ignore_articles); return true;
     default: return false;
     }
 }

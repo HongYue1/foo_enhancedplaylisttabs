@@ -288,14 +288,16 @@ BOOL ConfigureDialog::on_init_dialog(CWindow, LPARAM) {
     fill_combo(control(IDC_ALIGN), {L"Start", L"Centre", L"End"});
     // Order matters: ChevronPosition.
     fill_combo(control(IDC_CHEVRON), {L"At the end of the strip", L"At the start of the strip"});
-    fill_combo(control(IDC_INDICATOR), {L"Underline", L"Pill", L"Text only"});
+    // Order matters: Indicator, one for one.
+    fill_combo(control(IDC_INDICATOR), {L"Underline", L"Pill", L"Text only", L"Tab", L"Outlined tab"});
     // Order matters: AccentSource and StripBackground, one for one.
     const std::wstring theme_accent = state_.ui_name + L" selection colour";
     const std::wstring theme_background = state_.ui_name + L" background";
     fill_combo(control(IDC_ACCENT_SOURCE), {theme_accent.c_str(), L"Custom colour", L"From the playing cover"});
     fill_combo(control(IDC_BACKGROUND), {theme_background.c_str(), L"Custom colour", L"Tinted with the accent"});
     // Order matters: MiddleClick and TabDoubleClick, one for one.
-    fill_combo(control(IDC_MIDDLE), {L"Does nothing", L"Hides the tab", L"Removes the playlist"});
+    fill_combo(control(IDC_MIDDLE),
+               {L"Does nothing", L"Hides the tab", L"Removes the playlist", L"Locks / unlocks the playlist"});
     fill_combo(control(IDC_DBLCLICK_TAB), {L"Does nothing", L"Renames the playlist"});
     // Order matters: DropName.
     fill_combo(control(IDC_DROP_NAME), {L"Creates a playlist named after the folder",
@@ -509,7 +511,8 @@ void ConfigureDialog::update_enabled() {
     enable(IDC_ROTATE, s.position == StripPosition::left || s.position == StripPosition::right);
     enable(IDC_ALIGN, s.sizing != TabSizing::fill);
     // The strength is the opacity of a fill, which only the pill and chips have.
-    const bool fill = s.indicator == Indicator::pill || s.chip;
+    const bool fill = s.indicator == Indicator::pill || s.indicator == Indicator::tab ||
+                      s.indicator == Indicator::tab_outline || s.chip;
     enable(IDC_STRENGTH_AUTO, fill);
     enable(IDC_STRENGTH, fill && s.accent_strength != 0);
     enable(IDC_STRENGTH_VALUE, fill && s.accent_strength != 0);

@@ -51,6 +51,7 @@ public:
     void on_strip_metrics_changed() noexcept override {}
     void on_strip_middle_click(std::size_t) noexcept override {}
     void on_strip_reorder(std::size_t, std::size_t) noexcept override {}
+    void on_strip_reorder_block(std::span<const std::size_t>, std::size_t, bool) noexcept override {}
 };
 
 int failures = 0;

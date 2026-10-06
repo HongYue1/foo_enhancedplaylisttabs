@@ -10,8 +10,8 @@ general rules (file tools, builds through `cmd //c`, v145 toolset, background jo
   post-Windows 7 imports and on any Columns UI import on purpose (the DLL must load without
   Columns UI). `build.bat` also builds `columns_ui-sdk-public` (its plain Release is /MT).
 - Tests: `cmd //c test\build_tests.bat` (codec, strip layout, cover accent, strip render,
-  z-order, keyed model, title fields). Results in `test/tests.out`; the last line must be
-  `EXIT=0 0 0 0 0 0 0`.
+  z-order, keyed model, title fields, playlist sort). Results in `test/tests.out`; the last line
+  must be `EXIT=0 0 0 0 0 0 0 0`.
 - Dialogs: `cmd //c "..\foobar2000-component-dev\scripts\dialog_check.bat foo_enhancedplaylisttabs.rc"`
   after every layout change; 0 problems required. Every page is 300 x 218 DU, the size of the host
   placeholder (`IDC_PAGE_HOST`): a taller page is clipped at runtime.
@@ -58,6 +58,18 @@ live core, Default UI ones included (harmless). Use the `columns-ui-sdk` skill f
 - Hidden / locked flags live in a playlist property (`guids::playlist_flags`), so File > Restore
   and saved playlists keep them. Our lock is reinstalled at start-up and when a playlist is
   restored, deferred out of `on_playlist_created` (installing a lock re-enters the callback).
+- Pins are flags too (`playlist_flag_pin_start` / `_pin_end`). `SwitcherCore::collect_visible`
+  groups the strip as start pins, unpinned, end pins (so strip order is not playlist order when
+  pins exist); `StripLayout` keeps pins outside the overflow window. Each group is in playlist
+  order, so the incremental created / removed / flags paths stay incremental with pins
+  (`group_insert_pos`, `insert_visible`, `erase_visible`); a pin change moves the tab by key.
+- A drag starting on a selected tab is a block drag (`begin_block_drag`): the strip gathers the
+  group's selected tabs, moves them as one, and reports `on_strip_reorder_block` with indices of
+  the order before the drag; a cancel restores that order by key (`drag_keys_`).
+- Sorting by length sums on `fb2k::inCpuWorkerThread`; `apply_sort` runs on the main thread and
+  drops the result if the keys or positions changed meanwhile.
+- Do not initialise a `static const std::wstring` from `cond ? std::wstring(a) : std::wstring(b)`:
+  under MSVC it came out empty (`pin_glyph`). Construct from the `const wchar_t*` instead.
 
 ### Menus and dialogs
 

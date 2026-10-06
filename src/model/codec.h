@@ -62,7 +62,11 @@ enum PlaylistFlag : std::uint32_t {
     playlist_flag_hidden = 1u << 0,
     //! Locked from the tab menu (playlists/user_lock.h); the lock is reinstalled at startup.
     playlist_flag_locked = 1u << 1,
+    //! Pinned to the start / end of the strip (never both): always shown, outside the overflow.
+    playlist_flag_pin_start = 1u << 2,
+    playlist_flag_pin_end = 1u << 3,
 };
+inline constexpr std::uint32_t playlist_flag_pins = playlist_flag_pin_start | playlist_flag_pin_end;
 [[nodiscard]] Bytes encode_playlist_flags(std::uint32_t flags);
 [[nodiscard]] std::uint32_t decode_playlist_flags(std::span<const std::uint8_t> bytes) noexcept;
 

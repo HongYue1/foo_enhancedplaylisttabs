@@ -15,6 +15,11 @@ namespace ept::playlists {
 
 bool Entry::hidden() const noexcept { return (flags & playlist_flag_hidden) != 0; }
 
+std::uint8_t Entry::pin() const noexcept {
+    if ((flags & playlist_flag_pin_start) != 0) return 1;
+    return (flags & playlist_flag_pin_end) != 0 ? 2 : 0;
+}
+
 namespace {
 
 [[nodiscard]] std::wstring widen(const char* utf8, std::size_t length) {
@@ -405,10 +410,19 @@ std::uint32_t stored_flags(std::size_t index) noexcept {
 }
 
 bool set_flag(std::size_t index, std::uint32_t flag, bool on) noexcept {
+    return on ? change_flags(index, 0, flag) : change_flags(index, flag, 0);
+}
+
+bool set_pin(std::size_t index, std::uint8_t pin) noexcept {
+    const std::uint32_t set = pin == 1 ? playlist_flag_pin_start : pin == 2 ? playlist_flag_pin_end : 0u;
+    return change_flags(index, playlist_flag_pins & ~set, set);
+}
+
+bool change_flags(std::size_t index, std::uint32_t clear, std::uint32_t set) noexcept {
     auto& m = model();
     if (m && index >= m->entries.size()) return false;
     const std::uint32_t before = m ? m->entries[index].flags : stored_flags(index);
-    const std::uint32_t flags = on ? (before | flag) : (before & ~flag);
+    const std::uint32_t flags = (before & ~clear) | set;
     if (flags == before) return true;
     try {
         auto pm2 = playlist_manager_v2::get();
