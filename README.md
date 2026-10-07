@@ -193,6 +193,7 @@ some-folder/
   SDK-2026-09-17/             foobar2000 SDK
     columns_ui-sdk/           Columns UI SDK, inside the foobar2000 SDK folder
   wtl/                        WTL (the folder that contains Include/)
+  fb2k-common/                colour code shared with the author's other components (cover colour, contrast)
 ```
 
 - foobar2000 SDK: <https://www.foobar2000.org/SDK>
@@ -220,12 +221,11 @@ To try a build without packaging, copy `x64\Release\foo_enhancedplaylisttabs.dll
 
 ### Tests (no foobar2000 needed)
 
-`test\build_tests.bat` builds and runs seven tests:
+`test\build_tests.bat` builds and runs these tests:
 
 - `codec_test`: settings survive a round trip, fields from newer versions are kept, damaged data
   falls back to defaults; safe file names for Save.
 - `layout_test`: tab positions for each width mode and alignment, and overflow.
-- `accent_test`: the accent picked from synthetic covers.
 - `render_test`: renders the strip offline, times it, counts allocations in the paint path and
   writes PNGs to `test\out\`.
 - `zorder_test`: the window-manager behaviour auto-hide relies on (what does and does not
@@ -233,6 +233,9 @@ To try a build without packaging, copy `x64\Release\foo_enhancedplaylisttabs.dll
 - `model_test`: keyed strip updates with 500 tabs (one created builds one layout; removals, moves
   and hide/show build none).
 - `title_test`: which fields a title script uses, and the `%length%` text.
+- `sort_test`: playlist sorting.
+
+The cover colour and contrast code has its own tests in `fb2k-common\test\`.
 
 ### Source map
 
@@ -247,7 +250,7 @@ To try a build without packaging, copy `x64\Release\foo_enhancedplaylisttabs.dll
 | `src/playlists/playlist_model.cpp` | The one playlist callback, per-playlist flags, `%length%` sums |
 | `src/playlists/playlist_title.cpp` | The title formatting fields |
 | `src/playlists/user_lock.cpp` | Lock playlist |
-| `src/model/` | Settings and their storage, accent from the cover, title-field inspection, file names |
+| `src/model/` | Settings and their storage, title-field inspection, file names; `colour.h` and `cover_accent.h` forward to `fb2k-common` |
 | `src/strip/strip_window.cpp` | The strip: drawing, input, tooltips, keyed item updates |
 | `src/strip/strip_layout.cpp` | Tab positions and overflow |
 | `src/strip/hot_zone.cpp` | The auto-hide hot zone |

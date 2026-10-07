@@ -9,9 +9,12 @@ general rules (file tools, builds through `cmd //c`, v145 toolset, background jo
   `build.log` / `build-Win32.log`; 0 warnings is required (/W4 /WX). The build fails on
   post-Windows 7 imports and on any Columns UI import on purpose (the DLL must load without
   Columns UI). `build.bat` also builds `columns_ui-sdk-public` (its plain Release is /MT).
-- Tests: `cmd //c test\build_tests.bat` (codec, strip layout, cover accent, strip render,
-  z-order, keyed model, title fields, playlist sort). Results in `test/tests.out`; the last line
-  must be `EXIT=0 0 0 0 0 0 0 0`.
+- Tests: `cmd //c test\build_tests.bat` (codec, strip layout, strip render, z-order, keyed
+  model, title fields, playlist sort). Results in `test/tests.out`; the last line must be
+  `EXIT=0 0 0 0 0 0 0`.
+- Cover colour and contrast (OKLab, APCA) are in the shared `../fb2k-common` library, with its
+  own tests (`fb2k-common/test/build_tests.bat`, including a golden test over the user's
+  covers). Change them there; Better Tabs, Media Bar and foo_onscreendisplay use the same code.
 - Dialogs: `cmd //c "..\foobar2000-component-dev\scripts\dialog_check.bat foo_enhancedplaylisttabs.rc"`
   after every layout change; 0 problems required. Every page is 300 x 218 DU, the size of the host
   placeholder (`IDC_PAGE_HOST`): a taller page is clipped at runtime.

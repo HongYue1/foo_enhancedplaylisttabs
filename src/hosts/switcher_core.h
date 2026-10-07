@@ -79,7 +79,8 @@ public:
     //! Ctrl+Tab: the next (+1) or previous (-1) visible playlist, wrapping. False when this
     //! element does not take it (switched off, fewer than two tabs).
     bool cycle_tabs(int direction) noexcept;
-    void refresh_colours() noexcept;
+    //! `fade`: animate to the new colours (Settings::animations permitting).
+    void refresh_colours(bool fade = false) noexcept;
     void refresh_font() noexcept;
 
 protected:

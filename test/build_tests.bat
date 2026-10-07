@@ -1,18 +1,16 @@
 @echo off
-rem Builds and runs the offline tests (codec, strip layout, cover accent, strip render, z-order,
-rem keyed strip updates, title fields, playlist sort).
+rem Builds and runs the offline tests (codec, strip layout, strip render, z-order, keyed strip
+rem updates, title fields, playlist sort). The cover colour code has its own tests in ..\fb2k-common\test.
 rem Output: test\tests.out; render PNGs in test\out\render_*.png
 setlocal
 call "C:\Program Files\Microsoft Visual Studio\18\Community\VC\Auxiliary\Build\vcvars64.bat" >nul
 cd /d %~dp0
 if not exist out mkdir out
-set CL_FLAGS=/nologo /EHsc /std:c++latest /O2 /MT /W4 /WX /permissive- /DUNICODE /D_UNICODE /DNOMINMAX /Fo:out\
+set CL_FLAGS=/nologo /EHsc /std:c++latest /O2 /MT /W4 /WX /permissive- /DUNICODE /D_UNICODE /DNOMINMAX /I..\..\fb2k-common\include /Fo:out\
 cl %CL_FLAGS% /Fe:out\codec_test.exe codec_test.cpp ..\src\model\codec.cpp /link /SUBSYSTEM:CONSOLE > out\build_codec.txt 2>&1
 if errorlevel 1 (type out\build_codec.txt & exit /b 1)
 cl %CL_FLAGS% /Fe:out\layout_test.exe layout_test.cpp ..\src\strip\strip_layout.cpp /link /SUBSYSTEM:CONSOLE > out\build_layout.txt 2>&1
 if errorlevel 1 (type out\build_layout.txt & exit /b 1)
-cl %CL_FLAGS% /Fe:out\accent_test.exe accent_test.cpp ..\src\model\cover_accent.cpp /link /SUBSYSTEM:CONSOLE > out\build_accent.txt 2>&1
-if errorlevel 1 (type out\build_accent.txt & exit /b 1)
 cl %CL_FLAGS% /Fe:out\render_test.exe render_test.cpp ..\src\strip\strip_window.cpp ..\src\strip\strip_layout.cpp ..\src\platform\graphics.cpp /link /SUBSYSTEM:CONSOLE > out\build_render.txt 2>&1
 if errorlevel 1 (type out\build_render.txt & exit /b 1)
 cl %CL_FLAGS% /Fe:out\zorder_test.exe zorder_test.cpp /link /SUBSYSTEM:CONSOLE /MANIFEST:EMBED /MANIFESTINPUT:compat.manifest user32.lib > out\build_zorder.txt 2>&1
@@ -29,23 +27,20 @@ set E1=%ERRORLEVEL%
 echo == layout == >> tests.out
 out\layout_test.exe >> tests.out 2>&1
 set E2=%ERRORLEVEL%
-echo == accent == >> tests.out
-out\accent_test.exe >> tests.out 2>&1
-set E3=%ERRORLEVEL%
 echo == render == >> tests.out
 out\render_test.exe >> tests.out 2>&1
-set E4=%ERRORLEVEL%
+set E3=%ERRORLEVEL%
 echo == zorder == >> tests.out
 out\zorder_test.exe >> tests.out 2>&1
-set E5=%ERRORLEVEL%
+set E4=%ERRORLEVEL%
 echo == model == >> tests.out
 out\model_test.exe >> tests.out 2>&1
-set E6=%ERRORLEVEL%
+set E5=%ERRORLEVEL%
 echo == title == >> tests.out
 out\title_test.exe >> tests.out 2>&1
-set E7=%ERRORLEVEL%
+set E6=%ERRORLEVEL%
 echo == sort == >> tests.out
 out\sort_test.exe >> tests.out 2>&1
-set E8=%ERRORLEVEL%
-echo EXIT=%E1% %E2% %E3% %E4% %E5% %E6% %E7% %E8% >> tests.out
+set E7=%ERRORLEVEL%
+echo EXIT=%E1% %E2% %E3% %E4% %E5% %E6% %E7% >> tests.out
 type tests.out
