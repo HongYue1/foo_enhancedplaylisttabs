@@ -193,12 +193,13 @@ some-folder/
   SDK-2026-09-17/             foobar2000 SDK
     columns_ui-sdk/           Columns UI SDK, inside the foobar2000 SDK folder
   wtl/                        WTL (the folder that contains Include/)
-  fb2k-common/                colour code shared with the author's other components (cover colour, contrast)
+  fb2k-common/                colour code shared with my other components (cover colour, contrast)
 ```
 
 - foobar2000 SDK: <https://www.foobar2000.org/SDK>
 - Columns UI SDK: <https://github.com/reupen/columns_ui-sdk>
 - WTL: <https://sourceforge.net/projects/wtl/>
+- fb2k-common: <https://github.com/HongYue1/fb2k-common>
 
 Then, from `foo_enhancedplaylisttabs/`:
 
