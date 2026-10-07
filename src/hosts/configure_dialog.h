@@ -7,6 +7,7 @@
 
 #include <windows.h>
 
+#include <cstdint>
 #include <string>
 
 #include "../model/settings.h"
@@ -19,6 +20,9 @@ struct ConfigureState {
     std::wstring ui_name{L"Default UI"};
     //! That UI's name for its highlight colour ("highlight colour", "active item frame").
     std::wstring highlight_name{L"highlight colour"};
+    //! The host's font, for the Fonts page's "Default (...)" row and where its font dialog starts.
+    std::wstring host_font_family;
+    std::uint32_t host_font_tenths{90};
 };
 
 class ConfigureTarget {

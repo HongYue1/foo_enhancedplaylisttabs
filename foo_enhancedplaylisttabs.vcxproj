@@ -116,6 +116,7 @@
     <ClCompile Include="src\playlists\user_lock.cpp" />
     <ClCompile Include="src\model\codec.cpp" />
     <ClCompile Include="..\fb2k-common\src\cover_accent.cpp" />
+    <ClCompile Include="..\fb2k-common\src\fonts.cpp" />
     <ClCompile Include="..\fb2k-common\src\cover_hub.cpp" />
     <ClCompile Include="..\fb2k-common\src\image_decoder.cpp" />
     <ClCompile Include="src\model\playlist_sort.cpp" />

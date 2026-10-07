@@ -23,6 +23,8 @@
 #include <string>
 #include <vector>
 
+#include "fbc/fonts.h"
+
 #include "../../resource.h"
 #include "configure_dialog.h"
 
@@ -32,7 +34,7 @@ namespace ept {
 
 namespace {
 
-constexpr int page_count = 5;
+constexpr int page_count = 6;
 
 //! A control by id on the dialog itself or on one of its pages (ids are unique across pages).
 [[nodiscard]] HWND find_control(HWND dialog, int control) {
@@ -95,24 +97,11 @@ constexpr int page_count = 5;
     return RGB((argb >> 16) & 0xFF, (argb >> 8) & 0xFF, argb & 0xFF);
 }
 
-//! Text fields get some room before the first character (4 px at 96 DPI).
-void pad_text_fields(HWND dialog) {
-    HDC dc = ::GetDC(dialog);
-    const int dpi = dc != nullptr ? ::GetDeviceCaps(dc, LOGPIXELSY) : 96;
-    if (dc != nullptr) ::ReleaseDC(dialog, dc);
-    const int pad = ::MulDiv(4, dpi, 96);
-    ::EnumChildWindows(
-        dialog,
-        [](HWND child, LPARAM value) -> BOOL {
-            wchar_t name[16]{};
-            ::GetClassNameW(child, name, 16);
-            if (_wcsicmp(name, L"Edit") == 0) {
-                ::SendMessageW(child, EM_SETMARGINS, EC_LEFTMARGIN | EC_RIGHTMARGIN,
-                               MAKELPARAM(value, value));
-            }
-            return TRUE;
-        },
-        pad);
+//! Text fields get some room before the first character (fb2k-common).
+using fbc::fonts::pad_text_fields;
+
+[[nodiscard]] fbc::fonts::FontChoice font_choice(const TabFont& font) {
+    return {font.family, font.tenths_pt, font.weight, font.italic};
 }
 
 //! titleformat_help.html ships with foobar2000, next to the executable.
@@ -240,8 +229,8 @@ private:
     void set_label(int id, const wchar_t* text) const {
         const HWND w = control(id);
         if (w == nullptr) return;
-        wchar_t current[64]{};
-        ::GetWindowTextW(w, current, 64);
+        wchar_t current[256]{};
+        ::GetWindowTextW(w, current, 256);
         if (std::wcscmp(current, text) == 0) return;
         ::SetWindowTextW(w, text);
         repaint_behind(w);
@@ -269,6 +258,10 @@ private:
     void settings_from_controls();
     void update_values();
     void update_enabled();
+    //! The Fonts page's rows, from state_.settings.font.
+    void show_fonts();
+    //! Select, Default and Clear on the Fonts page. False for any other control.
+    bool on_font_command(int id);
     //! "Active playlist: <its tab title>" under the title field.
     void update_preview();
 
@@ -289,7 +282,7 @@ BOOL ConfigureDialog::on_init_dialog(CWindow, LPARAM) {
     create_pages();
     {
         const HWND tabs = ::GetDlgItem(m_hWnd, IDC_TABS);
-        const wchar_t* const names[page_count] = {L"Strip", L"Look", L"Titles", L"Behaviour", L"Auto-hide"};
+        const wchar_t* const names[page_count] = {L"Strip", L"Look", L"Fonts", L"Titles", L"Behaviour", L"Auto-hide"};
         for (int i = 0; i < page_count; ++i) {
             TCITEMW item{};
             item.mask = TCIF_TEXT;
@@ -419,6 +412,7 @@ void ConfigureDialog::settings_to_controls() {
     set_number(IDC_MAX_WIDTH, s.max_tab_width);
 
     select(IDC_INDICATOR, static_cast<int>(s.indicator));
+    set_number(IDC_LINE_WIDTH, s.line_width);
     check(IDC_CHIP, s.chip);
     set_number(IDC_RADIUS, s.corner_radius);
     check(IDC_STRENGTH_AUTO, s.accent_strength == 0);
@@ -452,6 +446,7 @@ void ConfigureDialog::settings_to_controls() {
     set_number(IDC_AH_REVEAL, s.reveal_delay_ms);
     set_number(IDC_AH_HIDE, s.hide_delay_ms);
     set_number(IDC_AH_LINGER, s.linger_ms);
+    show_fonts();
     loading_ = false;
     update_values();
     update_enabled();
@@ -483,6 +478,7 @@ void ConfigureDialog::settings_from_controls() {
     s.max_tab_width = number(IDC_MAX_WIDTH);
 
     pick(IDC_INDICATOR, s.indicator);
+    s.line_width = static_cast<std::uint8_t>((std::min)(number(IDC_LINE_WIDTH), std::uint16_t{8}));
     s.chip = checked(IDC_CHIP);
     s.corner_radius = number(IDC_RADIUS);
     s.accent_strength = checked(IDC_STRENGTH_AUTO) ? 0 : static_cast<std::uint8_t>(std::clamp(slider(IDC_STRENGTH), 5, 100));
@@ -534,6 +530,48 @@ void ConfigureDialog::update_preview() {
     ::SetWindowTextW(control(IDC_TITLE_PREVIEW), text.c_str());
 }
 
+void ConfigureDialog::show_fonts() {
+    const TabFont& f = state_.settings.font;
+    const std::string text =
+        f.family.empty()
+            ? fbc::fonts::describe_default({fbc::fonts::narrow(state_.host_font_family), state_.host_font_tenths})
+            : fbc::fonts::describe(font_choice(f));
+    set_label(IDC_FONT_TEXT, fbc::fonts::widen(text).c_str());
+    for (int i = 0; i < static_cast<int>(f.fallbacks.size()); ++i) {
+        const std::string& family = f.fallbacks[static_cast<std::size_t>(i)];
+        set_label(IDC_FALLBACK_TEXT + i, family.empty() ? L"None" : fbc::fonts::widen(family).c_str());
+    }
+}
+
+bool ConfigureDialog::on_font_command(int id) {
+    TabFont& f = state_.settings.font;
+    const int slots = static_cast<int>(f.fallbacks.size());
+    const std::string host = fbc::fonts::narrow(state_.host_font_family);
+    if (id == IDC_FONT_PICK) {
+        fbc::fonts::FontChoice choice = font_choice(f);
+        if (!fbc::fonts::pick_font(m_hWnd, choice, {host, state_.host_font_tenths, 400})) return true;
+        f.family = choice.family;
+        f.tenths_pt = static_cast<std::uint16_t>((std::min)(choice.tenths_pt, 720u));
+        f.weight = static_cast<std::uint16_t>((std::min)(choice.weight, 1000u));
+        f.italic = choice.italic;
+    } else if (id == IDC_FONT_CLEAR) {
+        f.family.clear();
+        f.tenths_pt = 0;
+        f.weight = 0;
+        f.italic = false;
+    } else if (id >= IDC_FALLBACK_PICK && id < IDC_FALLBACK_PICK + slots) {
+        std::string& slot = f.fallbacks[static_cast<std::size_t>(id - IDC_FALLBACK_PICK)];
+        if (!fbc::fonts::pick_family(m_hWnd, slot, f.family.empty() ? host : f.family)) return true;
+    } else if (id >= IDC_FALLBACK_CLEAR && id < IDC_FALLBACK_CLEAR + slots) {
+        f.fallbacks[static_cast<std::size_t>(id - IDC_FALLBACK_CLEAR)].clear();
+    } else {
+        return false;
+    }
+    show_fonts();
+    changed();
+    return true;
+}
+
 void ConfigureDialog::update_enabled() {
     const Settings& s = state_.settings;
     enable(IDC_ROTATE, s.position == StripPosition::left || s.position == StripPosition::right);
@@ -541,6 +579,7 @@ void ConfigureDialog::update_enabled() {
     // The strength is the opacity of the accent fill, which only the pill and the tab have.
     const bool fill = s.indicator == Indicator::pill || s.indicator == Indicator::tab;
     enable(IDC_STRENGTH_AUTO, fill);
+    enable(IDC_LINE_WIDTH, s.indicator == Indicator::underline || s.indicator == Indicator::tab_outline);
     enable(IDC_STRENGTH, fill && s.accent_strength != 0);
     enable(IDC_STRENGTH_VALUE, fill && s.accent_strength != 0);
     const bool custom_accent = s.accent_source == AccentSource::custom;
@@ -586,6 +625,7 @@ void ConfigureDialog::on_command(UINT code, int id, CWindow) {
     default: break;
     }
     if (loading_) return;
+    if (code == BN_CLICKED && on_font_command(id)) return;
     switch (id) {
     case IDC_DEFAULTS:
         state_.settings = Settings{};

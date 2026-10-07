@@ -324,6 +324,8 @@ protected:
     COLORREF background_{RGB(255, 255, 255)};
     bool in_create_{false};
     bool cover_subscribed_{false};
+    //! The Settings::font the strip's font was last built with; refresh_font() when it differs.
+    TabFont applied_font_{};
 
     // Auto-hide state.
     HotZone hot_zone_;

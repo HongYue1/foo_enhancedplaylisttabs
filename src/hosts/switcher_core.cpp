@@ -11,6 +11,10 @@
 #include <array>
 #include <cmath>
 #include <optional>
+#include <string>
+#include <vector>
+
+#include "fbc/fonts.h"
 
 #include "../model/colour.h"
 #include "../model/file_name.h"
@@ -1571,11 +1575,47 @@ void SwitcherCore::refresh_colours(bool fade) noexcept {
     }
 }
 
+namespace {
+
+//! The Fonts page over the host's font: a picked family (and its size, weight and italic), then
+//! the fallback families ahead of the host's own fallback (fb2k-common builds the chain).
+void apply_user_font(StripFont& font, const TabFont& user) {
+    if (!user.family.empty()) {
+        float size = font.size_dip;
+        if (size <= 0.0f && font.font.lfHeight != 0) {
+            size = std::fabs(static_cast<float>(font.font.lfHeight)) * 96.0f /
+                   static_cast<float>(font.font_dpi != 0 ? font.font_dpi : 96);
+        }
+        if (user.tenths_pt != 0) size = static_cast<float>(user.tenths_pt) / 10.0f * 96.0f / 72.0f;
+        font.family = fbc::fonts::widen(user.family);
+        font.weight = static_cast<DWRITE_FONT_WEIGHT>(user.weight != 0 ? user.weight : 400);
+        font.style = user.italic ? DWRITE_FONT_STYLE_ITALIC : DWRITE_FONT_STYLE_NORMAL;
+        font.stretch = DWRITE_FONT_STRETCH_NORMAL;
+        font.size_dip = size > 0.0f ? size : 12.0f;
+    }
+    std::vector<std::wstring> families;
+    for (const std::string& name : user.fallbacks) {
+        if (!name.empty()) families.push_back(fbc::fonts::widen(name));
+    }
+    if (families.empty()) return;
+    com_ptr<IDWriteFontFallback> host;
+    if (font.fallback) {
+        (void)font.fallback->QueryInterface(__uuidof(IDWriteFontFallback), reinterpret_cast<void**>(host.put()));
+    }
+    if (auto chain = fbc::fonts::make_fallback(gfx::dwrite(), families, host.get()); chain) {
+        *font.fallback.put() = chain.Detach();
+    }
+}
+
+} // namespace
+
 void SwitcherCore::refresh_font() noexcept {
     try {
         StripFont font;
         StripTextOptions options;
         host_font(font, options);
+        applied_font_ = settings_.font;
+        apply_user_font(font, settings_.font);
 
         const int before = strip_.thickness();
         strip_.set_text_options(options);
@@ -1605,6 +1645,7 @@ void SwitcherCore::update_cover_subscription() noexcept {
 void SwitcherCore::apply_settings() noexcept {
     clamp(settings_);
     strip_.set_settings(settings_);
+    if (settings_.font != applied_font_) refresh_font();
     update_cover_subscription();
     refresh_colours();
     ah_update_mode();
@@ -2360,6 +2401,17 @@ bool SwitcherCore::run_configure(HWND parent) {
     original.settings = settings_;
     original.ui_name = host_ui_name();
     original.highlight_name = host_highlight_name();
+    try {
+        StripFont font;
+        StripTextOptions options;
+        host_font(font, options);
+        original.host_font_family = !font.family.empty() ? font.family : std::wstring(font.font.lfFaceName);
+        const float pt = font.size_dip > 0.0f ? font.size_dip * 72.0f / 96.0f
+                                              : std::fabs(static_cast<float>(font.font.lfHeight)) * 72.0f /
+                                                    static_cast<float>(font.font_dpi != 0 ? font.font_dpi : 96);
+        original.host_font_tenths = static_cast<std::uint32_t>(std::lround(pt * 10.0f));
+    } catch (...) {
+    }
     ConfigureState state = original;
     bool ok = false;
     menu_pin_ = true;
@@ -2388,6 +2440,7 @@ void SwitcherCore::preview(const ConfigureState& state) noexcept {
         clamp(settings_);
         if (core_wnd() == nullptr) return;
         strip_.set_settings(settings_);
+        if (settings_.font != applied_font_) refresh_font();
         update_cover_subscription();
         refresh_colours();
         ah_update_mode();
