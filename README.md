@@ -24,7 +24,7 @@
   title, all equal or fill the strip) and alignment, padding and spacing.
 - **Accent colour** from the UI selection colour, the UI highlight colour (Default UI) or active item
   frame colour (Columns UI), a custom colour, or the playing track's cover. The
-  strip background can follow the UI, be custom, or be tinted with the accent.
+  strip background can follow the UI, be custom, or be tinted with the accent (a nearly grey cover leaves it untinted).
 - **Titles** are the playlist's name or title formatting, with fields such as `%size%`, `%length%`,
   `%index%`, `%is_playing%` and `%lock_name%`. They update live.
 - **Playlist commands** on the tab: new, rename, duplicate, remove, save, load, lock, hide, move,
