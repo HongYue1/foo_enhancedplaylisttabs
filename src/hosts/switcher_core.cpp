@@ -1120,6 +1120,7 @@ DWORD SwitcherCore::on_drop(IDataObject* data, POINT screen, DWORD allowed) noex
                         MessageBeep(MB_ICONWARNING);
                         return;
                     }
+                    pm->playlist_undo_backup(index); // Edit > Undo takes the drop back, as in the playlist view
                     pm->playlist_add_items(index, items, pfc::bit_array_false());
                 } catch (...) {
                 }
