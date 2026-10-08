@@ -42,6 +42,11 @@ pulls in `<windows.h>`), or winsock definitions clash.
 `InstanceData` blob (settings + one child record). Colour/font client changes fan out to every
 live core, Default UI ones included (harmless). Use the `columns-ui-sdk` skill for SDK details.
 
+The hosted child is shown with `ShowWindow`, never `SWP_SHOWWINDOW` (a Columns UI splitter child
+stays empty otherwise), and `fill_background` paints `HostColours::layout` for a child's DC so
+splitter dividers match Columns UI. Both ported from foo_bettertabs (see its AGENTS.md); not yet
+verified at run time here.
+
 ### The playlists model
 
 - `src/playlists/playlist_model.cpp` owns the **only** `playlist_callback` in the process, alive
@@ -117,3 +122,19 @@ Static text is drawn on a transparent background in dark mode. Change a label's 
 state only through `set_label` / `enable` in `configure_dialog.cpp`: they skip no-op changes and
 erase the page behind the control first (`repaint_behind`). A plain `SetWindowText` or
 `EnableWindow` piles the new text on the old, which looks bold and fringed (fixed in 1.2.3).
+
+### Hover styles (Hover page)
+
+- `Settings::hover_*` style only tabs other than the active one; the active tab keeps its old
+  plain wash on hover. `StripWindow::draw_tab` draws the mark (fill, outline via `fill_shape`,
+  which also strokes pills now, or underline) over the tab's own fill (chip, selection).
+- The fade keeps a `hover_level` per `Item` (so it moves with reorders) and is read only while
+  `hover_fading_`; otherwise `index == hover_` decides. Anything that resets `hover_` on an item
+  change must call `stop_hover_fade()`.
+- `render_test` `hover_test` checks each style by pixels and writes `test/out/hover_96.png`. In
+  tests, pump only `WM_TIMER` for the strip: the real pointer is elsewhere, and a posted
+  `WM_MOUSELEAVE` ends the hover.
+- Pages are `IDD_PAGE_STRIP + i`, so the ids stay consecutive: Strip, Look, Hover, Colours, Fonts,
+  then the rest.
+- `save_png` in `render_test` writes 24 bpp BGR: WIC's PNG encoder turns a 32 bpp request into
+  24 bpp, and the 32 bpp rows it was fed before scrambled every image in `test/out`.

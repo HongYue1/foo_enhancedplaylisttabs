@@ -1498,8 +1498,11 @@ void SwitcherCore::fill_background(HDC dc) const noexcept {
     if (dc == nullptr) return;
     RECT clip{};
     if (GetClipBox(dc, &clip) == ERROR || IsRectEmpty(&clip)) return;
+    // A child's DC (or its buffer) means a transparent child asking for what lies behind it: the
+    // host's layout background, so a splitter's dividers show as they do outside the container.
+    const COLORREF fill = WindowFromDC(dc) == core_wnd() ? background_ : child_background_;
     // The stock DC brush: no GDI object is created per erase.
-    const COLORREF previous = SetDCBrushColor(dc, background_);
+    const COLORREF previous = SetDCBrushColor(dc, fill);
     FillRect(dc, &clip, static_cast<HBRUSH>(GetStockObject(DC_BRUSH)));
     SetDCBrushColor(dc, previous);
 }
@@ -1568,6 +1571,7 @@ void SwitcherCore::refresh_colours(bool fade) noexcept {
         }
 
         background_ = panel;
+        child_background_ = colours.layout.value_or(panel);
         hot_zone_.set_colour(panel);
         strip_.set_theme(theme, fade);
         if (const HWND self = core_wnd(); self != nullptr) InvalidateRect(self, nullptr, FALSE);
@@ -2414,7 +2418,8 @@ bool SwitcherCore::run_configure(HWND parent) {
     }
     ConfigureState state = original;
     bool ok = false;
-    menu_pin_ = true;
+    const bool pinned = menu_pin_; // already set when opened from the tab menu
+    menu_pin_ = true;              // an auto-hidden strip stays shown while the dialog is open
     try {
         // Owned by the window the user is in: Columns UI's Layout page passes the main window,
         // which would put the dialog behind Preferences.
@@ -2426,7 +2431,8 @@ bool SwitcherCore::run_configure(HWND parent) {
     } catch (const std::exception& e) {
         log::warn(std::string("the Configure dialog failed: ") + e.what());
     }
-    menu_pin_ = false;
+    menu_pin_ = pinned;
+    if (!pinned) ah_evaluate();
     // Cancel puts back what the live preview changed.
     preview(ok ? state : original);
     return ok;

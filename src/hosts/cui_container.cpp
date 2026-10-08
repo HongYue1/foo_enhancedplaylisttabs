@@ -366,7 +366,10 @@ void CuiSwitcher::create_child() noexcept {
         child_window_ = object;
         child_wnd_ = wnd;
         SetWindowPos(wnd, nullptr, rc.left, rc.top, rc.right - rc.left, rc.bottom - rc.top,
-                     SWP_NOZORDER | SWP_NOACTIVATE | SWP_SHOWWINDOW);
+                     SWP_NOZORDER | SWP_NOACTIVATE);
+        // Not SWP_SHOWWINDOW: it sends no WM_SHOWWINDOW, and Columns UI's Row/Column splitters
+        // show their own children only on that message, so a hosted splitter would stay empty.
+        if ((GetWindowLongPtrW(wnd, GWL_STYLE) & WS_VISIBLE) == 0) ShowWindow(wnd, SW_SHOWNA);
     } catch (const std::exception& e) {
         log::warn(std::string("could not create the hosted panel: ") + e.what());
         child_wnd_ = nullptr;
@@ -542,6 +545,8 @@ HostColours CuiSwitcher::host_colours() const noexcept {
         out.selection = colours.get_colour(cui::colours::colour_selection_background);
         out.highlight = colours.get_colour(cui::colours::colour_active_item_frame);
         out.dark = colours.is_dark_mode_active();
+        // What Columns UI paints behind its splitters (their dividers show through).
+        out.layout = out.dark ? RGB(51, 51, 51) : GetSysColor(COLOR_BTNFACE);
     } catch (...) {
     }
     return out;

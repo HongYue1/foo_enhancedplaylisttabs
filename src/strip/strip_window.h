@@ -264,6 +264,8 @@ private:
         int icon_gap{0};
         //! In the multiple selection.
         bool selected{false};
+        //! How far the hover mark has faded in (0..1); read only while hover_fading_.
+        float hover_level{0.0f};
         //! Built for this font/DPI generation; a newer generation rebuilds the layouts.
         unsigned generation{0};
         [[nodiscard]] int content_width() const noexcept { return icon_width + icon_gap + text_width; }
@@ -356,6 +358,13 @@ private:
         if (settings_.line_width != 0) return static_cast<float>((std::max)(1, px(settings_.line_width)));
         return static_cast<float>((std::max)(2, px(2)));
     }
+    //! 0..1: how strongly tab `index` shows as hovered (eased while the hover fades).
+    [[nodiscard]] float hover_amount(std::size_t index) const noexcept;
+    [[nodiscard]] COLORREF hover_colour() const noexcept;
+    [[nodiscard]] float hover_fill_alpha() const noexcept;
+    [[nodiscard]] float hover_line_alpha() const noexcept;
+    //! Outline (or underline) width of the hover mark, in whole pixels.
+    [[nodiscard]] float hover_line_px(bool underline) const noexcept;
     void draw_chevron() noexcept;
     //! Opacity of the active tab's accent fill (pill or chip).
     [[nodiscard]] float active_fill_alpha() const noexcept;
@@ -376,6 +385,12 @@ private:
     void show_theme(const StripTheme& theme) noexcept;
     void stop_theme_fade() noexcept;
     void on_theme_timer() noexcept;
+
+    // Hover fade (Settings::hover_fade): each tab's hover_level moves towards 1 (hovered) or 0.
+    //! hover_ just changed from `old`: repaints both and starts the fade if it is on.
+    void hover_changed(std::size_t old) noexcept;
+    void stop_hover_fade() noexcept;
+    void on_hover_timer() noexcept;
 
     HWND wnd_{nullptr};
     StripListener* listener_{nullptr};
@@ -454,6 +469,9 @@ private:
     std::uint64_t drag_key_{0}; //!< the grabbed tab
     //! A plain press on a selected tab: the selection ends on release, unless it was dragged.
     bool clear_on_release_{false};
+
+    bool hover_fading_{false};
+    std::uint64_t hover_tick_{0};
 
     bool switching_{false};
     std::size_t switch_from_{no_index};

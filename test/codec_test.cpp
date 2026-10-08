@@ -74,6 +74,15 @@ Settings odd_settings() {
     s.follow_playing = true;
     s.drop_name = DropName::autoname;
     s.confirm_remove = false;
+    s.hover_style = HoverStyle::outline_fill;
+    s.hover_colour = HoverColour::custom;
+    s.hover_argb = 0xFF405060u;
+    s.hover_fill_strength = 25;
+    s.hover_line_width = 3;
+    s.hover_line_opacity = 70;
+    s.hover_text = HoverText::colour;
+    s.hover_fade = true;
+    s.hover_fade_ms = 240;
     return s;
 }
 

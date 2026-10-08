@@ -56,6 +56,9 @@ struct HostColours {
     //! Default UI: the highlight colour. Columns UI: the active item frame.
     COLORREF highlight{RGB(0, 120, 215)};
     bool dark{false};
+    //! Behind transparent children (a splitter's dividers), so they look as they do elsewhere in
+    //! the host's layout. Unset: `background`.
+    std::optional<COLORREF> layout;
 };
 
 class SwitcherCore : protected StripListener,
@@ -322,6 +325,8 @@ protected:
     Limits child_limits_{};
     Limits limits_{};
     COLORREF background_{RGB(255, 255, 255)};
+    //! Fill for transparent children (HostColours::layout).
+    COLORREF child_background_{RGB(255, 255, 255)};
     bool in_create_{false};
     bool cover_subscribed_{false};
     //! The Settings::font the strip's font was last built with; refresh_font() when it differs.

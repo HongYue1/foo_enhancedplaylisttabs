@@ -36,6 +36,14 @@ enum class DropName : std::uint8_t { folder, autoname };
 enum class TitleMode : std::uint8_t { playlist_name, format };
 enum class RevealMode : std::uint8_t { overlay, push };
 enum class ShowHideAnimation : std::uint8_t { none, slide, fade };
+//! How a hovered tab other than the active one is marked. The active tab keeps its own look.
+//! New values go at the end: the codec stores the number.
+enum class HoverStyle : std::uint8_t { fill, outline, outline_fill, underline, underline_fill, none };
+//! The colour of the hover mark. text: the strip's text colour (a neutral wash).
+enum class HoverColour : std::uint8_t { text, accent, custom };
+//! What the hovered tab's title does: brighten to the full text colour (as the active one),
+//! stay dimmed, or take the hover colour.
+enum class HoverText : std::uint8_t { brighten, unchanged, colour };
 
 //! The tab font. An empty family follows the host (Columns UI's font for this component, or the
 //! Default UI's tab font). Fallback families are tried in order for characters the font lacks.
@@ -92,6 +100,22 @@ struct Settings {
     std::uint16_t animation_ms{150};
     //! Length of the tab switch animation.
     std::uint16_t switch_ms{150};
+
+    // Hover (tabs other than the active one).
+    HoverStyle hover_style{HoverStyle::fill};
+    HoverColour hover_colour{HoverColour::text};
+    //! 0xAARRGGBB, used when hover_colour == custom.
+    std::uint32_t hover_argb{0xFF3EA6FFu};
+    //! Opacity of the hover fill in percent; 0 = automatic.
+    std::uint8_t hover_fill_strength{0};
+    //! Outline or underline width in DIPs; 0 = automatic (1.5 and 2).
+    std::uint8_t hover_line_width{0};
+    //! Opacity of the outline or underline in percent; 0 = automatic.
+    std::uint8_t hover_line_opacity{0};
+    HoverText hover_text{HoverText::brighten};
+    //! The hover mark fades in and out over hover_fade_ms.
+    bool hover_fade{false};
+    std::uint16_t hover_fade_ms{120};
 
     bool wheel_cycles{true};
     MiddleClick middle_click{MiddleClick::nothing};
