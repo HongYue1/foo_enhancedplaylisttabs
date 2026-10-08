@@ -379,6 +379,7 @@ void StripWindow::end_item_change(std::size_t active) noexcept {
     active_ = active < items_.size() ? active : no_index;
     hover_ = no_index;
     recount_selection();
+    sync_anchor();
     rebuild_items();
     update_thickness();
     relayout();
@@ -559,6 +560,7 @@ void StripWindow::set_active(std::size_t active) noexcept {
     const std::size_t old = active_;
     stop_switch();
     active_ = active;
+    sync_anchor();
     if (layout_.overflow && active != no_index && !layout_.shows(active)) {
         // The visible window of tabs has to move.
         relayout();
@@ -1275,7 +1277,9 @@ void StripWindow::draw_tab(std::size_t index) noexcept {
         target_->PopAxisAlignedClip();
     }
 
-    if (active && focused_ && !hide_focus_) {
+    // The active tab in the multiple selection is outlined (the active fill hides the selection
+    // wash), whatever the focus cues; otherwise the outline is the keyboard focus cue.
+    if (active && (item.selected || (focused_ && !hide_focus_))) {
         D2D1_RECT_F focus = bg;
         focus.left += 0.5f;
         focus.top += 0.5f;
@@ -1382,6 +1386,11 @@ LRESULT StripWindow::on_message(UINT msg, WPARAM wp, LPARAM lp) noexcept {
         if (reinterpret_cast<HWND>(lp) != wnd_) {
             if (dragging_) end_drag(false);
             press_index_ = no_index;
+            // No button-up follows: a pending clear would hit the next Ctrl+click's selection.
+            if (clear_on_release_) {
+                clear_on_release_ = false;
+                clear_selection();
+            }
         }
         if (listener_ != nullptr) listener_->on_strip_pointer();
         return 0;
@@ -1440,6 +1449,14 @@ LRESULT StripWindow::on_message(UINT msg, WPARAM wp, LPARAM lp) noexcept {
     case WM_KILLFOCUS:
         focused_ = msg == WM_SETFOCUS;
         invalidate_tab(active_);
+        if (!focused_) {
+            // The focus went elsewhere (the playlist, another window): the selection ends. A
+            // drag still running is cancelled first; its block is made of the selection.
+            focus_return_ = nullptr;
+            if (dragging_) end_drag(false);
+            clear_on_release_ = false;
+            clear_marks();
+        }
         if (listener_ != nullptr) listener_->on_strip_pointer();
         break;
     case WM_UPDATEUISTATE: {
@@ -1683,9 +1700,16 @@ void StripWindow::on_button_down(POINT pt, WPARAM keys) noexcept {
         if ((keys & (MK_CONTROL | MK_SHIFT)) == 0) clear_selection();
         return;
     }
+    clear_on_release_ = false;
     if (select_click(index, keys)) {
-        // The keyboard focus comes along, so Esc can end the selection.
-        if (wnd_ != nullptr && GetFocus() != wnd_) SetFocus(wnd_);
+        if (selected_count_ == 0) {
+            release_selection_focus(); // Ctrl+click unselected the last tab
+        } else if (wnd_ != nullptr && GetFocus() != wnd_) {
+            // The keyboard focus comes along, so Esc can end the selection; it goes back when
+            // the selection ends, and losing it ends the selection.
+            const HWND previous = SetFocus(wnd_);
+            if (GetFocus() == wnd_ && previous != wnd_) focus_return_ = previous;
+        }
         return;
     }
     // A plain click ends a multiple selection and starts the next range here. On a selected tab
@@ -1738,7 +1762,7 @@ bool StripWindow::select_click(std::size_t index, WPARAM keys) noexcept {
         // the range to the selection, Shift alone replaces it.
         std::size_t anchor = anchor_index_ < items_.size() ? anchor_index_ : active_;
         if (anchor >= items_.size()) anchor = index;
-        if (!ctrl) clear_selection();
+        if (!ctrl) clear_marks();
         const std::size_t lo = (std::min)(anchor, index);
         const std::size_t hi = (std::max)(anchor, index);
         for (std::size_t i = lo; i <= hi; ++i) set_selected(i, true);
@@ -1764,7 +1788,7 @@ void StripWindow::set_selected(std::size_t index, bool selected) noexcept {
     invalidate_tab(index);
 }
 
-void StripWindow::clear_selection() noexcept {
+void StripWindow::clear_marks() noexcept {
     if (selected_count_ == 0) return;
     for (std::size_t i = 0; i < items_.size(); ++i) {
         if (items_[i].selected) {
@@ -1773,6 +1797,34 @@ void StripWindow::clear_selection() noexcept {
         }
     }
     selected_count_ = 0;
+}
+
+void StripWindow::clear_selection() noexcept {
+    clear_marks();
+    release_selection_focus();
+}
+
+void StripWindow::release_selection_focus() noexcept {
+    const HWND back = focus_return_;
+    focus_return_ = nullptr;
+    if (back == nullptr || wnd_ == nullptr || GetFocus() != wnd_) return;
+    // Back where it was (the playlist, usually); else to the container, which passes it on to
+    // its child. Either way the strip stops looking focused and auto-hide is not held open.
+    if (IsWindow(back) != FALSE && IsWindowVisible(back) != FALSE && IsWindowEnabled(back) != FALSE) {
+        SetFocus(back);
+    } else if (const HWND parent = GetParent(wnd_); parent != nullptr) {
+        SetFocus(parent);
+    }
+}
+
+void StripWindow::sync_anchor() noexcept {
+    const std::uint64_t id = active_ >= items_.size()          ? 0
+                             : items_[active_].spec.key != 0 ? items_[active_].spec.key
+                                                             : ~static_cast<std::uint64_t>(active_);
+    if (id == anchor_active_) return;
+    anchor_active_ = id;
+    anchor_key_ = 0;
+    anchor_index_ = no_index;
 }
 
 void StripWindow::selection(std::vector<std::size_t>& out) const {

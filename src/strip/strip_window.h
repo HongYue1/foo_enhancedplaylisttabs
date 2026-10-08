@@ -286,6 +286,13 @@ private:
     void set_selected(std::size_t index, bool selected) noexcept;
     //! Recounts selected_count_ after the items changed shape.
     void recount_selection() noexcept;
+    //! Unmarks every selected tab; the focus stays (a Shift+click about to select a new range).
+    void clear_marks() noexcept;
+    //! The selection is empty: hands the keyboard focus back if a Ctrl/Shift+click took it.
+    void release_selection_focus() noexcept;
+    //! After active_ may have changed: a new active tab is the next Shift+click's anchor (an
+    //! anchor left on the previous tab selected the wrong range after a new playlist).
+    void sync_anchor() noexcept;
     void on_button_up(POINT pt) noexcept;
     void on_middle_up(POINT pt) noexcept;
     void drag_to(POINT pt) noexcept;
@@ -417,6 +424,10 @@ private:
     //! Where a Shift+click range starts: the key of the tab last clicked (0 = the active tab).
     std::uint64_t anchor_key_{0};
     std::size_t anchor_index_{no_index};
+    //! Identity of active_ as sync_anchor() last saw it: its key, else ~index (keyless tabs).
+    std::uint64_t anchor_active_{0};
+    //! Where the focus was before a Ctrl/Shift+click took it, given back when the selection ends.
+    HWND focus_return_{nullptr};
     bool tracking_{false};
     bool focused_{false};
     bool hide_focus_{true};

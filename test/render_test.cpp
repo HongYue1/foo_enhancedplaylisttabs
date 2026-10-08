@@ -417,6 +417,77 @@ int block_drag_test(HWND parent) {
     return failures;
 }
 
+//! Activates like the host does: the clicked tab becomes active through set_active().
+class ActivatingListener : public NullListener {
+public:
+    StripWindow* strip{nullptr};
+    void on_strip_activate(std::size_t index) noexcept override {
+        if (strip != nullptr) strip->set_active(index);
+    }
+};
+
+//! Shift+click ranges, focus loss and a press that never gets its button-up.
+int selection_test(HWND parent) {
+    int failures = 0;
+    const auto check = [&failures](bool ok, const char* what) {
+        std::printf("%s  selection: %s\n", ok ? "ok  " : "FAIL", what);
+        if (!ok) ++failures;
+    };
+    ActivatingListener listener;
+    StripWindow strip;
+    listener.strip = &strip;
+    if (!strip.create(parent, listener)) return 1;
+    strip.set_dpi_override(96);
+    strip.set_settings(Settings{});
+    StripFont font;
+    font.family = L"Segoe UI";
+    font.size_dip = 12.0f;
+    strip.set_font(font);
+    std::vector<StripItem> items(6);
+    for (std::size_t i = 0; i < items.size(); ++i) {
+        items[i].key = i + 1;
+        items[i].label = std::wstring(L"Tab ") + static_cast<wchar_t>(L'A' + i);
+    }
+    strip.set_items(items, 0);
+    SetWindowPos(strip.hwnd(), nullptr, 0, 0, 1200, strip.thickness(), SWP_NOZORDER | SWP_NOACTIVATE);
+    const auto centre = [&strip](std::size_t i) {
+        const RECT r = strip.tab_bounds(i);
+        return MAKELPARAM((r.left + r.right) / 2, (r.top + r.bottom) / 2);
+    };
+    const auto click = [&strip, &centre](std::size_t i, WPARAM keys) {
+        SendMessageW(strip.hwnd(), WM_LBUTTONDOWN, keys | MK_LBUTTON, centre(i));
+        SendMessageW(strip.hwnd(), WM_LBUTTONUP, keys, centre(i));
+    };
+    // Click tab 4, then a new tab appears at the end and becomes active (a new playlist).
+    click(4, 0);
+    check(strip.active() == 4, "a click activates");
+    StripItem fresh;
+    fresh.key = 7;
+    fresh.label = L"Tab G";
+    strip.insert_item(6, fresh, 6);
+    // Shift+click tab 1: the range runs from the new active tab, not the tab clicked before.
+    click(1, MK_SHIFT);
+    bool range = strip.selection_count() == 6;
+    for (std::size_t i = 1; i <= 6; ++i) range = range && strip.is_selected(i);
+    check(range, "Shift+click after a new active tab selects 1..6");
+    // Keyboard focus going elsewhere ends the selection.
+    SendMessageW(strip.hwnd(), WM_KILLFOCUS, 0, 0);
+    check(strip.selection_count() == 0, "losing the focus clears the selection");
+    // Ctrl+click keeps the anchor at the clicked tab while the active tab stays.
+    click(2, MK_CONTROL);
+    click(4, MK_SHIFT);
+    check(strip.selection_count() == 3 && strip.is_selected(2) && strip.is_selected(4) && !strip.is_selected(6),
+          "Shift+click after Ctrl+click ranges from the Ctrl+clicked tab");
+    // A press on a selected tab whose button-up never comes (capture taken by a menu).
+    SendMessageW(strip.hwnd(), WM_LBUTTONDOWN, MK_LBUTTON, centre(3));
+    SendMessageW(strip.hwnd(), WM_CAPTURECHANGED, 0, 0);
+    check(strip.selection_count() == 0, "a lost press ends the selection");
+    click(1, MK_CONTROL);
+    check(strip.selection_count() == 2, "the next Ctrl+click selection survives its button-up");
+    strip.destroy();
+    return failures;
+}
+
 } // namespace
 
 int main() {
@@ -439,6 +510,7 @@ int main() {
     int failures = 0;
     for (const unsigned dpi : {96u, 144u, 192u}) failures += render_dpi(dpi, parent, listener);
     failures += block_drag_test(parent);
+    failures += selection_test(parent);
     DestroyWindow(parent);
     gfx::shutdown();
     CoUninitialize();

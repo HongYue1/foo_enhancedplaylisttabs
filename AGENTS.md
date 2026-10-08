@@ -74,6 +74,19 @@ live core, Default UI ones included (harmless). Use the `columns-ui-sdk` skill f
 - Do not initialise a `static const std::wstring` from `cond ? std::wstring(a) : std::wstring(b)`:
   under MSVC it came out empty (`pin_glyph`). Construct from the `const wchar_t*` instead.
 
+### Multiple selection (strip)
+
+- The Shift+click anchor is the tab last clicked, reset to the active tab whenever the active
+  tab changes by key (`StripWindow::sync_anchor`, called from `set_active` and
+  `end_item_change`). The host's own `set_active` after a click resets it to the clicked tab,
+  which is the same tab.
+- Ctrl/Shift+click takes the keyboard focus (for Esc) and remembers where it came from;
+  `clear_selection` gives it back (`release_selection_focus`), `WM_KILLFOCUS` ends the
+  selection. `clear_marks` unmarks without moving the focus (a Shift+click replacing its range).
+- The active tab in the selection is outlined regardless of `UISF_HIDEFOCUS`; without a
+  selection the outline is only the keyboard focus cue.
+- `test/render_test.cpp` `selection_test` covers the anchor, focus loss and a lost press.
+
 ### Menus and dialogs
 
 - Dark popup menus cannot draw `MF_MENUBARBREAK` columns (they turn light). Long lists use
