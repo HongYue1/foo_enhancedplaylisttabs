@@ -133,6 +133,37 @@ constexpr const wchar_t* title_examples[] = {
     L"$upper(%title%)",
 };
 
+//! Widens a drop-down's list (not the box) so its longest item shows in full, up to the work area.
+void fit_dropped_width(HWND combo) {
+    if (combo == nullptr) return;
+    const HDC dc = ::GetDC(combo);
+    if (dc == nullptr) return;
+    const HGDIOBJ old = ::SelectObject(dc, reinterpret_cast<HFONT>(::SendMessageW(combo, WM_GETFONT, 0, 0)));
+    int widest = 0;
+    const LRESULT count = ::SendMessageW(combo, CB_GETCOUNT, 0, 0);
+    std::wstring text;
+    for (LRESULT i = 0; i < count; ++i) {
+        const LRESULT length = ::SendMessageW(combo, CB_GETLBTEXTLEN, static_cast<WPARAM>(i), 0);
+        if (length <= 0) continue;
+        text.resize(static_cast<std::size_t>(length) + 1);
+        ::SendMessageW(combo, CB_GETLBTEXT, static_cast<WPARAM>(i), reinterpret_cast<LPARAM>(text.data()));
+        SIZE size{};
+        if (::GetTextExtentPoint32W(dc, text.c_str(), static_cast<int>(length), &size) != FALSE) {
+            widest = (std::max)(widest, static_cast<int>(size.cx));
+        }
+    }
+    ::SelectObject(dc, old);
+    ::ReleaseDC(combo, dc);
+    RECT box{};
+    ::GetWindowRect(combo, &box);
+    int width = widest + ::GetSystemMetrics(SM_CXVSCROLL) + 4 * ::GetSystemMetrics(SM_CXEDGE) + 8;
+    MONITORINFO mi{sizeof mi};
+    if (::GetMonitorInfoW(::MonitorFromWindow(combo, MONITOR_DEFAULTTONEAREST), &mi) != FALSE) {
+        width = (std::min)(width, static_cast<int>(mi.rcWork.right - mi.rcWork.left));
+    }
+    if (width > box.right - box.left) ::SendMessageW(combo, CB_SETDROPPEDWIDTH, static_cast<WPARAM>(width), 0);
+}
+
 //! Fills a drop-down in enum order, so the selection index *is* the stored value.
 void fill_combo(HWND combo, std::initializer_list<const wchar_t*> items) {
     if (combo == nullptr) return;
@@ -398,7 +429,8 @@ BOOL ConfigureDialog::on_init_dialog(CWindow, LPARAM) {
         for (const wchar_t* example : title_examples) {
             ::SendMessageW(examples, CB_ADDSTRING, 0, reinterpret_cast<LPARAM>(example));
         }
-        ::SendMessageW(examples, CB_SETCUEBANNER, 0, reinterpret_cast<LPARAM>(L"Pick one to use it"));
+        ::SendMessageW(examples, CB_SETCUEBANNER, 0, reinterpret_cast<LPARAM>(L"Examples: pick one to use it"));
+        fit_dropped_width(examples);
     }
 
     settings_to_controls();
@@ -629,7 +661,10 @@ void ConfigureDialog::settings_from_controls() {
     s.follow_playing = checked(IDC_FOLLOW_PLAYING);
 
     s.title_mode = checked(IDC_TITLE_FORMAT_MODE) ? TitleMode::format : TitleMode::playlist_name;
-    s.title_format = to_utf8(window_text(control(IDC_TITLE_PATTERN)));
+    // The field wraps over several lines; a pasted line break is not part of a tab title.
+    std::wstring pattern = window_text(control(IDC_TITLE_PATTERN));
+    std::erase_if(pattern, [](wchar_t c) { return c == L'\r' || c == L'\n'; });
+    s.title_format = to_utf8(pattern);
     s.animations = checked(IDC_SWITCH_ANIM);
     s.switch_ms = number(IDC_SWITCH_MS);
 

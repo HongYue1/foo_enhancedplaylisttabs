@@ -252,4 +252,8 @@ property, so it travels with the playlist.
   queue; counts are kept per playlist key. A changed `%queue_total%` relabels every tab (unchanged
   texts keep their layouts); otherwise only the playlists whose count changed.
 - Counts (`%queue_total%`, `%playlist_queue_total%`) are empty at 0, so `$if()` works.
+- Old names keep working but are not listed (Titles page, README): `%is_playing%` (= `%isplaying%`),
+  `%playlist_size%`, `%playlist_duration%`. Only foobar2000's name is shown where one exists.
+- Titles page: the pattern field is multi-line (wraps; line breaks are dropped when read), and
+  `fit_dropped_width` widens the examples list to its longest item.
 - `render_test` draws the example marks (play, two U+275A, lock) in the "title marks" rows.
