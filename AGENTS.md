@@ -125,9 +125,16 @@ erase the page behind the control first (`repaint_behind`). A plain `SetWindowTe
 
 ### Hover styles (Hover page)
 
-- `Settings::hover_*` style only tabs other than the active one; the active tab keeps its old
-  plain wash on hover. `StripWindow::draw_tab` draws the mark (fill, outline via `fill_shape`,
-  which also strokes pills now, or underline) over the tab's own fill (chip, selection).
+- `Settings::hover_*` style the tabs other than the active one, `active_hover_*` the active tab
+  (`StripWindow::hover_mark(active)`). `HoverStyle::plain` (active only, the default) is the old
+  wash folded into the tab's own fill, so it shows nothing on a pill or tab indicator; `clamp`
+  turns it into `fill` for the others. `StripWindow::draw_tab` draws the mark (fill, outline via
+  `fill_shape`, which also strokes pills now, or underline) over the tab's own fill (chip,
+  selection, the active fill). `active_hover_lighten` mixes the title towards white in OKLab
+  before the contrast checks. The fade is shared.
+- The Hover page edits one set at a time ("Settings for:"): switching it reloads the shared
+  controls without reading them first (`hover_to_controls`); the title row swaps the others'
+  combo for the active tab's Lighten box (`NOT WS_VISIBLE`, dialog_check skips hidden controls).
 - The fade keeps a `hover_level` per `Item` (so it moves with reorders) and is read only while
   `hover_fading_`; otherwise `index == hover_` decides. Anything that resets `hover_` on an item
   change must call `stop_hover_fade()`.
