@@ -3,6 +3,7 @@
 #include <cstdio>
 #include <vector>
 
+#include "../src/hosts/panel_limits.h"
 #include "../src/strip/strip_layout.h"
 
 using namespace ept;
@@ -222,6 +223,39 @@ int main() {
         in.length = 5000;
         layout_strip(in, out);
         check(out.tabs.data() == before, "output storage reused");
+    }
+
+    {
+        // Limits reported to the host (panel_limits). Forum report: with no child panel, Panel
+        // Stack Splitter gave the element more height than the strip.
+        const auto cap = static_cast<unsigned>(limit_cap);
+        StripShare strip;
+        strip.counts = true;
+        strip.thickness = 28;
+        strip.has_child = false;
+        Limits none = panel_limits(Limits{}, strip);
+        check(none.min_height == 28 && none.max_height == 28, "no child: the strip's thickness is min and max height");
+        check(none.min_width == 0 && none.max_width == cap, "no child: the width stays free");
+        strip.along_height = false;
+        none = panel_limits(Limits{}, strip);
+        check(none.min_width == 28 && none.max_width == 28 && none.max_height == cap, "no child, side strip: fixed width");
+        strip.along_height = true;
+        strip.has_child = true;
+        Limits child;
+        child.min_height = 50;
+        const Limits with = panel_limits(child, strip);
+        check(with.min_height == 78 && with.max_height == cap, "a child: strip added to its minimum, maximum stays open");
+        child.max_height = 200;
+        check(panel_limits(child, strip).max_height == 228, "a child with a maximum: the strip is added to it");
+        child.max_height = 10; // below its own minimum
+        check(panel_limits(child, strip).max_height == 78, "a child's maximum below its minimum is raised first");
+        strip.counts = false;
+        strip.has_child = false;
+        check(panel_limits(Limits{}, strip) == Limits{}, "auto-hidden or hidden strip, no child: no limits");
+        // A host that gives less room than the strip: the strip is cut to it, never larger.
+        check(strip_extent(28, 20) == 20 && strip_extent(28, 0) == 0 && strip_extent(28, -5) == 0 &&
+                  strip_extent(28, 100) == 28,
+              "the strip never extends past the room the host gave");
     }
 
     std::printf("%s (%d failure%s)\n", g_failures == 0 ? "PASS" : "FAIL", g_failures, g_failures == 1 ? "" : "s");

@@ -1224,7 +1224,7 @@ void SwitcherCore::layout() noexcept {
         const bool across_height =
             settings_.position == StripPosition::top || settings_.position == StripPosition::bottom;
         const int room = across_height ? client.bottom : client.right;
-        const int t = (std::min)(strip_.thickness(), (std::max)(0, room));
+        const int t = strip_extent(strip_.thickness(), room);
         switch (settings_.position) {
         case StripPosition::top:
             strip_rc = RECT{0, 0, client.right, t};
@@ -1335,22 +1335,12 @@ void SwitcherCore::layout() noexcept {
 }
 
 Limits SwitcherCore::compute_limits() const noexcept {
-    Limits out = child_limits_;
-    out.max_width = (std::max)(out.max_width, out.min_width);
-    out.max_height = (std::max)(out.max_height, out.min_height);
-    // An auto-hidden strip never counts: showing it must not resize the layout around us.
-    if (strip_shown_ && !auto_hide()) {
-        const auto t = static_cast<unsigned>((std::max)(0, strip_.thickness()));
-        const bool vertical_stack =
-            settings_.position == StripPosition::top || settings_.position == StripPosition::bottom;
-        unsigned& min_along = vertical_stack ? out.min_height : out.min_width;
-        unsigned& max_along = vertical_stack ? out.max_height : out.max_width;
-        min_along = (std::min)(min_along + t, static_cast<unsigned>(limit_cap));
-        if (max_along < static_cast<unsigned>(limit_cap)) {
-            max_along = (std::min)(max_along + t, static_cast<unsigned>(limit_cap));
-        }
-    }
-    return out;
+    StripShare strip;
+    strip.counts = strip_shown_ && !auto_hide();
+    strip.along_height = settings_.position == StripPosition::top || settings_.position == StripPosition::bottom;
+    strip.thickness = static_cast<unsigned>((std::max)(0, strip_.thickness()));
+    strip.has_child = host_child_wnd() != nullptr;
+    return panel_limits(child_limits_, strip);
 }
 
 void SwitcherCore::limits_changed() noexcept {

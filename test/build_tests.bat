@@ -21,6 +21,8 @@ cl %CL_FLAGS% /Fe:out\title_test.exe title_test.cpp ..\src\model\title_fields.cp
 if errorlevel 1 (type out\build_title.txt & exit /b 1)
 cl %CL_FLAGS% /Fe:out\sort_test.exe sort_test.cpp ..\src\model\playlist_sort.cpp /link /SUBSYSTEM:CONSOLE > out\build_sort.txt 2>&1
 if errorlevel 1 (type out\build_sort.txt & exit /b 1)
+cl %CL_FLAGS% /Fe:out\minmax_test.exe minmax_test.cpp /link /SUBSYSTEM:CONSOLE user32.lib > out\build_minmax.txt 2>&1
+if errorlevel 1 (type out\build_minmax.txt & exit /b 1)
 echo == codec == > tests.out
 out\codec_test.exe >> tests.out 2>&1
 set E1=%ERRORLEVEL%
@@ -42,5 +44,8 @@ set E6=%ERRORLEVEL%
 echo == sort == >> tests.out
 out\sort_test.exe >> tests.out 2>&1
 set E7=%ERRORLEVEL%
-echo EXIT=%E1% %E2% %E3% %E4% %E5% %E6% %E7% >> tests.out
+echo == minmax == >> tests.out
+out\minmax_test.exe >> tests.out 2>&1
+set E8=%ERRORLEVEL%
+echo EXIT=%E1% %E2% %E3% %E4% %E5% %E6% %E7% %E8% >> tests.out
 type tests.out

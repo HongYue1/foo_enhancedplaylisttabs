@@ -32,19 +32,11 @@
 #include "../strip/hot_zone.h"
 #include "../strip/strip_window.h"
 #include "configure_dialog.h"
+#include "panel_limits.h"
 #include "strip_drop.h"
 
 namespace ept {
 
-inline constexpr LONG limit_cap = MAXSHORT;
-
-struct Limits {
-    unsigned min_width{0};
-    unsigned min_height{0};
-    unsigned max_width{static_cast<unsigned>(limit_cap)};
-    unsigned max_height{static_cast<unsigned>(limit_cap)};
-    [[nodiscard]] bool operator==(const Limits&) const = default;
-};
 
 enum class PlaybackEvent : std::uint8_t { started, stopped, title };
 

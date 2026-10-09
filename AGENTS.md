@@ -10,8 +10,8 @@ general rules (file tools, builds through `cmd //c`, v145 toolset, background jo
   post-Windows 7 imports and on any Columns UI import on purpose (the DLL must load without
   Columns UI). `build.bat` also builds `columns_ui-sdk-public` (its plain Release is /MT).
 - Tests: `cmd //c test\build_tests.bat` (codec, strip layout, strip render, z-order, keyed
-  model, title fields, playlist sort). Results in `test/tests.out`; the last line must be
-  `EXIT=0 0 0 0 0 0 0`.
+  model, title fields, playlist sort, child min/max). Results in `test/tests.out`; the last line must be
+  `EXIT=0 0 0 0 0 0 0 0`.
 - Cover colour and contrast (OKLab, APCA) are in the shared `../fb2k-common` library, with its
   own tests (`fb2k-common/test/build_tests.bat`, including a golden test over the user's
   covers). Change them there; Better Tabs, Media Bar and foo_onscreendisplay use the same code.
@@ -122,6 +122,15 @@ Static text is drawn on a transparent background in dark mode. Change a label's 
 state only through `set_label` / `enable` in `configure_dialog.cpp`: they skip no-op changes and
 erase the page behind the control first (`repaint_behind`). A plain `SetWindowText` or
 `EnableWindow` piles the new text on the old, which looks bold and fringed (fixed in 1.2.3).
+
+### Size limits (no child panel)
+
+- `panel_limits.h` (`layout_test`): with no hosted panel the strip's thickness is both the minimum
+  and the maximum along it, as Columns UI's own Playlist tabs report with no child. Up to 1.4
+  the maximum stayed open and Panel Stack Splitter gave the element more height than the strip
+  (forum report, not reproduced here: PSS is not installed).
+- Windows does not clamp a child window's size to its own `WM_GETMINMAXINFO` answer
+  (`minmax_test`): a taller element always means the host honoured the limits we reported.
 
 ### Mouse actions (Mouse page)
 
