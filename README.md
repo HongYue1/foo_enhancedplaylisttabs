@@ -84,8 +84,10 @@ pin left or right (again to unpin), hide the tab, remove the playlist, lock or u
 - **Remove** asks first when the playlist has tracks (you can turn that off). **File > Restore**
   brings a removed playlist back.
 - **Hidden tabs** come back from **Show hidden tab** in the menu.
-- **Title formatting** adds `%index%`, `%size%`, `%length%`, `%is_active%`, `%is_playing%`,
-  `%is_locked%` and `%lock_name%`. Track fields such as `%artist%` are empty, and literal brackets
+- **Title formatting** has the playlist's fields: `%index%`, `%size%` (or `%list_total%`),
+  `%length%`, `%is_active%`, `%isplaying%`, `%ispaused%`, `%playlist_is_playing%` (also after
+  stop), `%is_locked%`, `%lock_name%`, `%queue_total%` and `%playlist_queue_total%`. The Titles
+  page lists them with examples. Track fields such as `%artist%` are empty, and literal brackets
   need quotes: `%title% '('%size%')'`.
 - **Tracks menu**: on the Behaviour page, add foobar2000's track menu to the tab menu as an
   **Items** submenu or an **Items...** entry. With several tabs selected it covers all of them.

@@ -13,11 +13,14 @@ namespace ept {
 enum TitleField : std::uint32_t {
     title_field_name = 1u << 0,    // %title%, %playlist_name%
     title_field_index = 1u << 1,   // %index%
-    title_field_size = 1u << 2,    // %size%, %playlist_size%
+    title_field_size = 1u << 2,    // %size%, %playlist_size%, %list_total%
     title_field_length = 1u << 3,  // %length%, %playlist_duration%
     title_field_active = 1u << 4,  // %is_active%
-    title_field_playing = 1u << 5, // %is_playing%
+    title_field_playing = 1u << 5, // %is_playing%, %isplaying%, %ispaused%: playback state
     title_field_lock = 1u << 6,    // %is_locked%, %lock_name%
+    title_field_playing_playlist = 1u << 7, // %playlist_is_playing%: the playing playlist, kept after stop
+    title_field_queue_total = 1u << 8,      // %queue_total%
+    title_field_queue_playlist = 1u << 9,   // %playlist_queue_total%
 };
 
 //! The TitleField bits for the %fields% in `pattern`, case-insensitive. Text in 'quotes' is

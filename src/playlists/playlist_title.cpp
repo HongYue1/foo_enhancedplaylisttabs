@@ -16,8 +16,8 @@ namespace {
 
 class Hook : public titleformat_hook {
 public:
-    Hook(std::size_t index, const Entry& entry, std::size_t active, std::size_t playing) noexcept
-        : index_(index), entry_(entry), active_(active), playing_(playing) {}
+    Hook(std::size_t index, const Entry& entry, const TitleContext& context) noexcept
+        : index_(index), entry_(entry), context_(context) {}
 
     bool process_field(titleformat_text_out* out, const char* name, t_size length, bool& found) override {
         found = false;
@@ -33,7 +33,7 @@ public:
             found = true;
             return true;
         }
-        if (is(name, length, "size") || is(name, length, "playlist_size")) {
+        if (is(name, length, "size") || is(name, length, "playlist_size") || is(name, length, "list_total")) {
             const std::size_t count = playlist_manager::get()->playlist_get_item_count(index_);
             out->write_int(titleformat_inputtypes::unknown, static_cast<t_int64>(count));
             found = true;
@@ -47,8 +47,15 @@ public:
             found = true;
             return true;
         }
-        if (is(name, length, "is_active")) return flag(out, found, index_ == active_);
-        if (is(name, length, "is_playing")) return flag(out, found, index_ == playing_);
+        const bool playing_here = index_ == context_.playing;
+        if (is(name, length, "is_active")) return flag(out, found, index_ == context_.active);
+        if (is(name, length, "is_playing") || is(name, length, "isplaying")) {
+            return flag(out, found, playing_here && context_.playback);
+        }
+        if (is(name, length, "ispaused")) return flag(out, found, playing_here && context_.paused);
+        if (is(name, length, "playlist_is_playing")) return flag(out, found, playing_here);
+        if (is(name, length, "queue_total")) return count(out, found, context_.queue_total);
+        if (is(name, length, "playlist_queue_total")) return count(out, found, context_.queue_here);
         if (is(name, length, "is_locked")) return flag(out, found, entry_.locked);
         if (is(name, length, "lock_name")) {
             pfc::string8 lock;
@@ -73,19 +80,38 @@ private:
         return value;
     }
 
+    //! The number and found when above 0; nothing and not found at 0, so $if() works.
+    static bool count(titleformat_text_out* out, bool& found, std::size_t value) {
+        found = value > 0;
+        if (found) out->write_int(titleformat_inputtypes::unknown, static_cast<t_int64>(value));
+        return found;
+    }
+
     std::size_t index_;
     const Entry& entry_;
-    std::size_t active_;
-    std::size_t playing_;
+    const TitleContext& context_;
 };
 
 } // namespace
 
+void read_playback(TitleContext& context) noexcept {
+    try {
+        context.playing = playlist_manager::get()->get_playing_playlist();
+        auto pc = playback_control::get();
+        context.playback = pc->is_playing();
+        context.paused = context.playback && pc->is_paused();
+    } catch (...) {
+        context.playing = SIZE_MAX;
+        context.playback = false;
+        context.paused = false;
+    }
+}
+
 std::wstring format_title(const titleformat_object::ptr& script, std::size_t index, const Entry& entry,
-                          std::size_t active, std::size_t playing) noexcept {
+                          const TitleContext& context) noexcept {
     try {
         if (!script.is_valid()) return entry.name;
-        Hook hook(index, entry, active, playing);
+        Hook hook(index, entry, context);
         pfc::string8 text;
         script->run(&hook, text, nullptr);
         const pfc::stringcvt::string_wide_from_utf8 wide(text.get_ptr());
@@ -110,7 +136,16 @@ std::wstring preview_title(const std::string& pattern) noexcept {
         entry.locked = pm->playlist_lock_is_present(active);
         titleformat_object::ptr script;
         titleformat_compiler::get()->compile_safe_ex(script, pattern.c_str(), "(invalid title)");
-        return format_title(script, active, entry, active, pm->get_playing_playlist());
+        TitleContext context;
+        context.active = active;
+        read_playback(context);
+        pfc::list_t<t_playback_queue_item> queue;
+        pm->queue_get_contents(queue);
+        context.queue_total = queue.get_count();
+        for (t_size i = 0; i < queue.get_count(); ++i) {
+            if (queue[i].m_playlist == active) ++context.queue_here;
+        }
+        return format_title(script, active, entry, context);
     } catch (...) {
         return {};
     }

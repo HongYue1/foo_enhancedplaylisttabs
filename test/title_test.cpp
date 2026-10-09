@@ -27,6 +27,12 @@ int main() {
     check(title_fields("'%size% %index%' %title%") == title_field_name, "quoted fields are literal");
     check(title_fields("$if(%is_playing%,> )%title%") == (title_field_playing | title_field_name), "is_playing in $if");
     check(title_fields("%playlist_duration%|%length%") == title_field_length, "length both names");
+    check(title_fields("%list_total%") == title_field_size, "list_total is size");
+    check(title_fields("%isplaying%%ISPAUSED%") == title_field_playing, "native playback fields");
+    check(title_fields("%playlist_is_playing%") == title_field_playing_playlist, "playing playlist");
+    check(title_fields("%queue_total% %playlist_queue_total%") ==
+              (title_field_queue_total | title_field_queue_playlist), "queue fields");
+    check(title_fields("'%queue_total%' %title%") == title_field_name, "quoted queue field is literal");
     check(title_fields("%is_active%%is_locked%%lock_name%") == (title_field_active | title_field_lock), "flags");
     check(title_fields("%artist% %size") == 0, "unknown field and unclosed %");
     check(title_fields("'it''s' %index%") == title_field_index, "doubled quote");

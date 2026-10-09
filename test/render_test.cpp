@@ -131,7 +131,7 @@ struct Look {
     StripPosition position{StripPosition::top};
     SideText side{SideText::horizontal};
     //! 0 labels only, 1 icon + label, 2 icons only, 3 twelve labels with the first and last
-    //! pinned (pin icon) and two tabs Ctrl+clicked into a selection.
+    //! pinned (pin icon) and two tabs Ctrl+clicked into a selection, 4 the title examples' marks.
     int icons{0};
 };
 
@@ -140,6 +140,10 @@ const std::vector<std::wstring> icons = {L"\xE8D6", L"\xD83C\xDFB5", L"\xE946", 
 
 const std::vector<std::wstring> labels = {L"Artwork view", L"ESLyric", L"Item properties",
                                           L"Album list",   L"Column",  L"Row"};
+
+//! The marks the Titles page examples use: play, pause (two U+275A), lock (an emoji).
+const std::vector<std::wstring> mark_labels = {L"\x25B6 Playing", L"\x275A\x275A Paused", L"\xD83D\xDD12 Locked",
+                                               L"Plain"};
 
 constexpr std::uint32_t dark_bg = 0x1E1E1E;
 constexpr std::uint32_t light_bg = 0xFFFFFF;
@@ -164,6 +168,10 @@ int render_dpi(unsigned dpi, HWND parent, NullListener& listener) {
         {"light outlined tab", false, Indicator::tab_outline, false, 2, 560},
         {"dark pins + selection", true, Indicator::tab_outline, false, no_index, 420, StripPosition::top,
          SideText::horizontal, 3},
+        {"dark title marks", true, Indicator::underline, false, no_index, 560, StripPosition::top,
+         SideText::horizontal, 4},
+        {"light title marks", false, Indicator::pill, false, no_index, 560, StripPosition::top,
+         SideText::horizontal, 4},
     };
     const std::vector<Look> sides = {
         {"dark left", true, Indicator::underline, false, 1, 260, StripPosition::left, SideText::horizontal},
@@ -178,7 +186,7 @@ int render_dpi(unsigned dpi, HWND parent, NullListener& listener) {
     const int gap = px(8);
     Canvas canvas;
     // Rows of horizontal strips, then the side strips next to each other.
-    canvas.init(px(560) + 2 * gap + px(3 * 160), px(560), 0x808080);
+    canvas.init(px(560) + 2 * gap + px(3 * 160), px(640), 0x808080);
 
     int failures = 0;
     int y = gap;
@@ -219,6 +227,8 @@ int render_dpi(unsigned dpi, HWND parent, NullListener& listener) {
         strip.set_font(font);
         if (look.icons == 0) {
             strip.set_labels(labels, 1);
+        } else if (look.icons == 4) {
+            strip.set_labels(mark_labels, 1);
         } else if (look.icons == 3) {
             std::vector<StripItem> items(2 * labels.size());
             for (std::size_t i = 0; i < items.size(); ++i) {

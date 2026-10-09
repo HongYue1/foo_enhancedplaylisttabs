@@ -237,3 +237,19 @@ The cover colour and contrast code has its own tests in `fb2k-common\test\`.
 Settings are stored in a versioned format that keeps fields it does not know, so adding an option
 does not break an existing layout. Per-playlist state (hidden, locked) is stored in a playlist
 property, so it travels with the playlist.
+
+### Title fields
+
+- `%is_playing%` / `%isplaying%` are on only while playback runs or is paused from that playlist;
+  `%playlist_is_playing%` keeps the old meaning: `get_playing_playlist()`, which foobar2000 keeps
+  after stop (checked in foobar2000 2.x). `%list_total%` is `%size%`, as foobar2000's own
+  `%list_total%` is the track count of the playlist. Not offered: `%list_index%`, `%queue_index%`
+  (track-only) and `%playback_time%` (would relabel every second).
+- `SwitcherCore::on_playback` relabels at most two tabs, and only when the playing playlist or
+  the playing/paused state changes (new tracks and stream titles in the same state do nothing).
+- Queue fields: `QueueWatch` (a `playback_queue_callback` service, always registered) coalesces a
+  burst of changes into one main-thread call. Only cores whose title uses a queue field read the
+  queue; counts are kept per playlist key. A changed `%queue_total%` relabels every tab (unchanged
+  texts keep their layouts); otherwise only the playlists whose count changed.
+- Counts (`%queue_total%`, `%playlist_queue_total%`) are empty at 0, so `$if()` works.
+- `render_test` draws the example marks (play, two U+275A, lock) in the "title marks" rows.

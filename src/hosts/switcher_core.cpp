@@ -250,6 +250,34 @@ public:
     void on_playback_dynamic_info_track(const file_info&) override { post(PlaybackEvent::title); }
 };
 
+//! The playback queue, for titles with %queue_total% or %playlist_queue_total%. A service, so it
+//! is always registered; it does nothing while no element has a window, and a burst of changes
+//! (queueing many tracks) becomes one update.
+class QueueWatch : public playback_queue_callback {
+public:
+    void on_changed(t_change_origin) override {
+        if (SwitcherCore::live().empty() || pending_) return;
+        pending_ = true;
+        try {
+            fb2k::inMainThread([] {
+                pending_ = false;
+                const std::vector<SwitcherCore*> list = SwitcherCore::live();
+                for (SwitcherCore* core : list) {
+                    const auto& now = SwitcherCore::live();
+                    if (std::find(now.begin(), now.end(), core) != now.end()) core->on_queue();
+                }
+            });
+        } catch (...) {
+            pending_ = false;
+        }
+    }
+
+private:
+    static inline bool pending_ = false;
+};
+
+FB2K_SERVICE_FACTORY(QueueWatch);
+
 //! Ctrl+Tab and Ctrl+Shift+Tab anywhere inside a container. The innermost container that takes
 //! it wins, so nested containers each cycle their own tabs.
 class CtrlTabFilter : public message_filter_impl_base {
@@ -381,11 +409,76 @@ void SwitcherCore::sync_title_needs() noexcept {
     if ((title_fields_ & title_field_size) != 0) needs |= playlists::need_counts;
     if ((title_fields_ & title_field_length) != 0) needs |= playlists::need_lengths;
     if (subscribed_) playlists::set_needs(*this, needs);
-    playing_key_ = 0;
+    playlists::TitleContext context;
+    playlists::read_playback(context);
+    const auto& entries = playlists::entries();
+    playing_key_ = context.playing < entries.size() ? entries[context.playing].key : 0;
+    playback_on_ = context.playback;
+    playback_paused_ = context.paused;
+    queue_total_ = 0;
+    queue_counts_.clear();
+    if ((title_fields_ & (title_field_queue_total | title_field_queue_playlist)) != 0) read_queue();
+}
+
+void SwitcherCore::read_queue() noexcept {
+    queue_total_ = 0;
+    queue_counts_.clear();
     try {
-        const std::size_t playing = playlist_manager::get()->get_playing_playlist();
+        pfc::list_t<t_playback_queue_item> queue;
+        playlist_manager::get()->queue_get_contents(queue);
+        queue_total_ = queue.get_count();
         const auto& entries = playlists::entries();
-        if (playing < entries.size()) playing_key_ = entries[playing].key;
+        for (t_size i = 0; i < queue.get_count(); ++i) {
+            const std::size_t playlist = queue[i].m_playlist;
+            if (playlist >= entries.size()) continue; // queued from outside a playlist
+            const std::uint64_t key = entries[playlist].key;
+            auto it = std::find_if(queue_counts_.begin(), queue_counts_.end(),
+                                   [key](const auto& kv) { return kv.first == key; });
+            if (it != queue_counts_.end()) {
+                ++it->second;
+            } else {
+                queue_counts_.emplace_back(key, 1);
+            }
+        }
+    } catch (...) {
+        queue_total_ = 0;
+        queue_counts_.clear();
+    }
+}
+
+std::size_t SwitcherCore::queued_in(std::uint64_t key) const noexcept {
+    for (const auto& kv : queue_counts_) {
+        if (kv.first == key) return kv.second;
+    }
+    return 0;
+}
+
+void SwitcherCore::on_queue() noexcept {
+    if (core_wnd() == nullptr) return;
+    if ((title_fields_ & (title_field_queue_total | title_field_queue_playlist)) == 0) return;
+    try {
+        const std::size_t total_before = queue_total_;
+        std::vector<std::pair<std::uint64_t, std::size_t>> before = std::move(queue_counts_);
+        read_queue();
+        const auto& entries = playlists::entries();
+        if ((title_fields_ & title_field_queue_total) != 0 && queue_total_ != total_before) {
+            // Every tab shows the total: relabel all; tabs whose text is unchanged keep their layouts.
+            for (std::size_t i = 0; i < entries.size(); ++i) (void)relabel_if_changed(i);
+            return;
+        }
+        // Only the playlists whose count changed: before and after are short lists.
+        auto relabel_key = [this](std::uint64_t key) {
+            const std::size_t index = playlists::index_of_key(key);
+            if (index != SIZE_MAX) (void)relabel_if_changed(index);
+        };
+        for (const auto& kv : before) {
+            if (queued_in(kv.first) != kv.second) relabel_key(kv.first);
+        }
+        for (const auto& kv : queue_counts_) {
+            const bool known = std::any_of(before.begin(), before.end(),
+                                           [&](const auto& old) { return old.first == kv.first; });
+            if (!known) relabel_key(kv.first);
+        }
     } catch (...) {
     }
 }
@@ -435,8 +528,12 @@ void SwitcherCore::update_label(std::size_t playlist) noexcept {
                                                          "(invalid title)");
             title_source_ = settings_.title_format;
         }
-        label = playlists::format_title(title_script_, playlist, entries[playlist], playlists::active(),
-                                        playlist_manager::get()->get_playing_playlist());
+        playlists::TitleContext context;
+        context.active = playlists::active();
+        playlists::read_playback(context);
+        context.queue_total = queue_total_;
+        context.queue_here = queued_in(entries[playlist].key);
+        label = playlists::format_title(title_script_, playlist, entries[playlist], context);
     } catch (...) {
         label = entries[playlist].name;
     }
@@ -1173,17 +1270,23 @@ void SwitcherCore::on_playback(PlaybackEvent event) noexcept {
         } catch (...) {
         }
     }
-    if ((title_fields_ & title_field_playing) == 0) return;
-    // Two tabs at most: the one that stopped playing and the one that started.
+    if ((title_fields_ & (title_field_playing | title_field_playing_playlist)) == 0) return;
+    // Two tabs at most: the one that stopped playing and the one that started. A new track or
+    // stream title in the same playlist with the same state changes nothing.
     try {
         const auto& entries = playlists::entries();
-        const std::size_t playing = playlist_manager::get()->get_playing_playlist();
-        const std::uint64_t key = playing < entries.size() ? entries[playing].key : 0;
-        if (key == playing_key_) return;
-        const std::size_t old = playlists::index_of_key(playing_key_);
+        playlists::TitleContext context;
+        playlists::read_playback(context);
+        const std::uint64_t key = context.playing < entries.size() ? entries[context.playing].key : 0;
+        const bool state_changed = (title_fields_ & title_field_playing) != 0 &&
+                                   (context.playback != playback_on_ || context.paused != playback_paused_);
+        if (key == playing_key_ && !state_changed) return;
+        const std::size_t old = key != playing_key_ ? playlists::index_of_key(playing_key_) : SIZE_MAX;
         playing_key_ = key;
+        playback_on_ = context.playback;
+        playback_paused_ = context.paused;
         if (old != SIZE_MAX) (void)relabel_if_changed(old);
-        if (playing < entries.size()) (void)relabel_if_changed(playing);
+        if (context.playing < entries.size()) (void)relabel_if_changed(context.playing);
     } catch (...) {
     }
 }

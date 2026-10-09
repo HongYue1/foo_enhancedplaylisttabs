@@ -19,10 +19,13 @@ namespace {
 [[nodiscard]] std::uint32_t field_bit(std::string_view name) noexcept {
     if (same(name, "title") || same(name, "playlist_name")) return title_field_name;
     if (same(name, "index")) return title_field_index;
-    if (same(name, "size") || same(name, "playlist_size")) return title_field_size;
+    if (same(name, "size") || same(name, "playlist_size") || same(name, "list_total")) return title_field_size;
     if (same(name, "length") || same(name, "playlist_duration")) return title_field_length;
     if (same(name, "is_active")) return title_field_active;
-    if (same(name, "is_playing")) return title_field_playing;
+    if (same(name, "is_playing") || same(name, "isplaying") || same(name, "ispaused")) return title_field_playing;
+    if (same(name, "playlist_is_playing")) return title_field_playing_playlist;
+    if (same(name, "queue_total")) return title_field_queue_total;
+    if (same(name, "playlist_queue_total")) return title_field_queue_playlist;
     if (same(name, "is_locked") || same(name, "lock_name")) return title_field_lock;
     return 0;
 }

@@ -71,6 +71,8 @@ public:
     [[nodiscard]] virtual HWND core_wnd() const noexcept = 0;
     //! From the process-wide playback watch: follow the playing playlist, refresh titles.
     void on_playback(PlaybackEvent event) noexcept;
+    //! The playback queue changed (coalesced, main thread).
+    void on_queue() noexcept;
     //! Ctrl+Tab: the next (+1) or previous (-1) visible playlist, wrapping. False when this
     //! element does not take it (switched off, fewer than two tabs).
     bool cycle_tabs(int direction) noexcept;
@@ -302,8 +304,17 @@ protected:
     std::unordered_map<std::uint64_t, std::wstring> labels_;
     //! TitleField bits the title script uses (0 with playlist names).
     std::uint32_t title_fields_{0};
-    //! The playing playlist's key when titles show %is_playing% (0 = none).
+    //! The playing playlist's key and playback state when titles show them (0 = none).
     std::uint64_t playing_key_{0};
+    bool playback_on_{false};
+    bool playback_paused_{false};
+    //! Titles with queue fields only: the queue length and queued tracks per playlist key
+    //! (only playlists with some; a short list, as queues are short).
+    std::size_t queue_total_{0};
+    std::vector<std::pair<std::uint64_t, std::size_t>> queue_counts_;
+    //! Reads the queue into queue_total_ / queue_counts_. Main thread.
+    void read_queue() noexcept;
+    [[nodiscard]] std::size_t queued_in(std::uint64_t key) const noexcept;
     //! Scratch for reorder_items(), kept for its capacity.
     std::vector<std::uint64_t> strip_keys_;
     //! Inside on_playlists(): it logs, rebuild_strip() does not.
