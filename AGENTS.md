@@ -175,3 +175,65 @@ erase the page behind the control first (`repaint_behind`). A plain `SetWindowTe
   then the rest.
 - `save_png` in `render_test` writes 24 bpp BGR: WIC's PNG encoder turns a 32 bpp request into
   24 bpp, and the 32 bpp rows it was fed before scrambled every image in `test/out`.
+
+## Performance
+
+- **One** playlist callback per process, however many elements exist, registered with
+  playlist-level events only. Track events are added only while a title shows `%size%` or
+  `%length%`, and are coalesced to one update per playlist per message-loop turn.
+- A switch only calls `set_active_playlist` and repaints two tabs. The hosted element is not moved,
+  resized or repainted by the strip.
+- Creating, removing, renaming, hiding or moving a playlist updates one tab: tabs are keyed by
+  playlist, so the other tabs keep their text layouts.
+- `%length%` is summed on a CPU worker from cached track info (no file access), so it never holds
+  up start-up or the UI.
+- No timers, hooks or polling while idle. Auto-hide is event driven; a timer runs only while a delay
+  is due, an animation plays or a drag hovers a tab.
+- Only the strip is painted: double-buffered, dirty rectangles only, and no heap allocations in
+  `WM_PAINT` (checked by the render test).
+- Measured with 509 playlists (foobar2000 2.26, x64): playlists read in 17 ms at start-up; one
+  playlist created in 0.2 ms (1 text layout built); one removed in 0.02 ms (none built); 500 removed
+  in 25 ms; a switch 0.5 ms on the strip's side, warm strip paints under 1.6 ms with no
+  allocations.
+
+## Tests
+
+`test\build_tests.bat` builds and runs these tests:
+
+- `codec_test`: settings survive a round trip, fields from newer versions are kept, damaged data
+  falls back to defaults; safe file names for Save.
+- `layout_test`: tab positions for each width mode and alignment, and overflow.
+- `render_test`: renders the strip offline, times it, counts allocations in the paint path and
+  writes PNGs to `test\out\`.
+- `zorder_test`: the window-manager behaviour auto-hide relies on (what does and does not
+  report a child moving above the hot zone).
+- `model_test`: keyed strip updates with 500 tabs (one created builds one layout; removals, moves
+  and hide/show build none).
+- `title_test`: which fields a title script uses, and the `%length%` text.
+- `sort_test`: playlist sorting.
+- `minmax_test`: how Windows and a host treat a child's min/max size info (no clamping).
+
+The cover colour and contrast code has its own tests in `fb2k-common\test\`.
+
+## Source map
+
+| File | Job |
+| --- | --- |
+| `src/component.cpp` | Component identity, DirectWrite warm-up |
+| `src/hosts/dui_element.cpp` | The Default UI container element and its hosted element |
+| `src/hosts/cui_container.cpp` | The Columns UI container, its hosted panel, colours and fonts clients |
+| `src/hosts/switcher_core.cpp` | Tabs, switching, menus, drag and drop, auto-hide |
+| `src/hosts/strip_drop.cpp` | OLE drop target for the strip and the hot zone |
+| `src/hosts/configure_dialog.cpp` | The Configure dialog, Rename and the remove confirmation |
+| `src/playlists/playlist_model.cpp` | The one playlist callback, per-playlist flags, `%length%` sums |
+| `src/playlists/playlist_title.cpp` | The title formatting fields |
+| `src/playlists/user_lock.cpp` | Lock playlist |
+| `src/model/` | Settings and their storage, title-field inspection, file names; `colour.h` and `cover_accent.h` forward to `fb2k-common` |
+| `src/strip/strip_window.cpp` | The strip: drawing, input, tooltips, keyed item updates |
+| `src/strip/strip_layout.cpp` | Tab positions and overflow |
+| `src/strip/hot_zone.cpp` | The auto-hide hot zone |
+| `src/platform/` | Drawing, cover loading and decoding, timing and logging |
+
+Settings are stored in a versioned format that keeps fields it does not know, so adding an option
+does not break an existing layout. Per-playlist state (hidden, locked) is stored in a playlist
+property, so it travels with the playlist.
