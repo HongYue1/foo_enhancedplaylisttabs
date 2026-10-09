@@ -259,6 +259,7 @@ enum SettingId : std::uint16_t {
     s_dblclick_action = 76,
     s_middle_action = 77,
     s_unpin_pinned = 78,
+    s_tracks_menu = 79,
 };
 
 //! Settings::middle_action as the value builds up to 1.4 read (0 for an action they lack).
@@ -346,6 +347,7 @@ void write_settings(Writer& w, const Settings& s) {
     field_u8(w, s_dblclick_action, static_cast<std::uint8_t>(s.dblclick_action));
     field_u8(w, s_middle_action, static_cast<std::uint8_t>(s.middle_action));
     field_u8(w, s_unpin_pinned, s.unpin_pinned ? 1 : 0);
+    field_u8(w, s_tracks_menu, static_cast<std::uint8_t>(s.tracks_menu));
 }
 
 //! Returns false for an id this build does not know.
@@ -439,6 +441,7 @@ bool read_setting(Settings& s, std::uint16_t id, std::span<const std::uint8_t> v
     case s_dblclick_action: read_enum(v, s.dblclick_action, TabAction::toggle_lock); return true;
     case s_middle_action: read_enum(v, s.middle_action, TabAction::toggle_lock); return true;
     case s_unpin_pinned: read_bool(v, s.unpin_pinned); return true;
+    case s_tracks_menu: read_enum(v, s.tracks_menu, TracksMenu::on_demand); return true;
     default: return false;
     }
 }

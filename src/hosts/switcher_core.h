@@ -351,6 +351,15 @@ protected:
     AhTimer ah_timer_{AhTimer::none};
     //! A menu (or a dialog from it) of this strip is open.
     bool menu_pin_{false};
+    // The tab menu's Items submenu (Settings::tracks_menu): the empty popup, the playlists whose
+    // tracks it shows, and the context menu built for them when the popup first opens.
+    HMENU items_menu_{nullptr};
+    std::vector<std::size_t> items_playlists_;
+    service_ptr_t<contextmenu_manager> items_manager_;
+    //! WM_INITMENUPOPUP for items_menu_: builds the track context menu into it.
+    void fill_items_menu() noexcept;
+    //! The tracks of `playlists`, in order.
+    [[nodiscard]] static metadb_handle_list tracks_of(const std::vector<std::size_t>& playlists);
     ULONGLONG linger_until_{0};
     bool ah_animating_{false};
     float ah_progress_{0.0f};

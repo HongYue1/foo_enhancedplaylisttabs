@@ -96,6 +96,7 @@ Right-click a tab:
 | Show hidden tab | Brings a hidden tab back |
 | Appearance | Strip position, active tab, accent colour and strength, strip background, tab width, show strip |
 | Configure... | The full settings dialog |
+| Items | Optional (Behaviour page, off by default): foobar2000's context menu for the playlist's tracks (all selected playlists' with a multiple selection), last after a separator as in the built-in Playlist Tabs. As an **Items** submenu it is built only when it opens; as **Items...** it opens as its own menu |
 
 Commands a lock does not allow are greyed out. Right-click a selected tab (see below) for commands
 on all selected playlists: remove, lock, hide, pin, sort the selected playlists among themselves, and
@@ -140,7 +141,7 @@ resets them.
 | Colours | Accent (UI selection colour, custom, from the playing cover, UI highlight colour / Columns UI active item frame); strip background (UI background, custom, tinted with the accent) and tint strength; transparent background (shows what the layout paints behind the strip, such as a Columns UI theme's image; not while auto-hide shows the strip over the panel) |
 | Fonts | Tab font (default: the host's font) and up to three fallback fonts for characters it cannot draw |
 | Titles | The playlist's name or title formatting, with a live preview, examples, the list of fields and **Functions** for the full title formatting reference |
-| Behaviour | Show the strip (always, only with two or more playlists, auto-hide, never); animate switches; Ctrl+Tab; what dropping on empty space names the new playlist; switch to the playing playlist when playback starts |
+| Behaviour | Show the strip (always, only with two or more playlists, auto-hide, never); animate switches; Ctrl+Tab; what dropping on empty space names the new playlist; switch to the playing playlist when playback starts; tracks context menu in the tab menu (hidden, Items submenu, Items... entry) |
 | Mouse | Actions for a click on the active tab, a double-click and a middle-click on a tab; unpin when already pinned; ask before removing; mouse wheel; drag to reorder; double-click on empty space |
 | Auto-hide | Reveal over the playlist (fastest) or push it aside; animation (none, slide, fade) and length; hot zone size; delays before showing and hiding; how long the strip stays after a switch |
 

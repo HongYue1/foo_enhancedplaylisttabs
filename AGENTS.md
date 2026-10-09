@@ -135,6 +135,15 @@ erase the page behind the control first (`repaint_behind`). A plain `SetWindowTe
   `GetDoubleClickTime()` (`click_timer`); `WM_LBUTTONDBLCLK` cancels it. `model_test`
   `click_test` covers the timing.
 
+### Tracks context menu (tab menu "Items")
+
+- `Settings::tracks_menu`. Submenu: an empty popup; `TrackPopupMenu` runs without
+  `TPM_NONOTIFY` only then, and `core_message` fills it on its `WM_INITMENUPOPUP`
+  (`fill_items_menu`: `contextmenu_manager::init_context_ex(..., caller_playlist_manager)`,
+  `win32_build_menu` with ids from `menu_items_base`). The manager lives until the menu returns,
+  then `execute_by_id`. On demand: `win32_run_menu_popup` after the tab menu closed. The perf log
+  times the build. Not testable offline (needs foobar2000).
+
 ### Hover styles (Hover page)
 
 - `Settings::hover_*` style the tabs other than the active one, `active_hover_*` the active tab

@@ -252,6 +252,9 @@ BEGIN
     LTEXT           "Drop on empty space:",IDC_STATIC,12,113,84,8
     COMBOBOX        IDC_DROP_NAME,99,111,194,80,CBS_DROPDOWNLIST | WS_VSCROLL | WS_TABSTOP
     CONTROL         "Switch to the playing playlist when playback starts",IDC_FOLLOW_PLAYING,"Button",BS_AUTOCHECKBOX | WS_TABSTOP,12,129,281,10
+    LTEXT           "Tracks context menu:",IDC_STATIC,12,147,84,8
+    COMBOBOX        IDC_TRACKS_MENU,99,145,194,80,CBS_DROPDOWNLIST | WS_VSCROLL | WS_TABSTOP
+    LTEXT           "foobar2000's menu for the tab's tracks, in the tab's right-click menu. Building it takes longer for very large playlists; as a submenu it is built only when opened.",IDC_STATIC,12,161,281,24
 END
 
 IDD_PAGE_MOUSE DIALOGEX 0, 0, 300, 218

@@ -44,6 +44,11 @@ enum class TabAction : std::uint8_t {
     remove_playlist,
     toggle_lock,
 };
+//! foobar2000's track context menu for the clicked tab's tracks (all selected tabs' with a
+//! multiple selection) in the tab menu: none, an "Items" submenu at the end built only when it
+//! opens, or an "Items..." entry that opens it as its own menu. Building it for a huge playlist is
+//! slow, so it is off by default.
+enum class TracksMenu : std::uint8_t { hidden, submenu, on_demand };
 //! The name of a playlist made by dropping files on empty strip space.
 enum class DropName : std::uint8_t { folder, autoname };
 //! Where a tab's title comes from.
@@ -171,6 +176,7 @@ struct Settings {
     //! A double click on empty strip space creates a playlist (the playlist manager's own
     //! "New Playlist", "New Playlist (2)"... naming) and activates it.
     bool dblclick_new{true};
+    TracksMenu tracks_menu{TracksMenu::hidden};
     //! folder: the dropped folder's name (or the common parent of the dropped files), falling
     //! back to autoname when there is none (tracks from another playlist, several drives).
     DropName drop_name{DropName::folder};

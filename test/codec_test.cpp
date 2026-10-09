@@ -52,6 +52,7 @@ Settings odd_settings() {
     s.middle_action = TabAction::show_now_playing;
     s.click_active_action = TabAction::jump_first_last;
     s.unpin_pinned = false;
+    s.tracks_menu = TracksMenu::on_demand;
     s.pin_icon = false;
     s.sort_descending = true;
     s.sort_ignore_articles = false;

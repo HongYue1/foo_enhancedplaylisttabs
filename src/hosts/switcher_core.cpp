@@ -70,10 +70,14 @@ enum TabCommand : unsigned {
     cmd_sort_descending,
     cmd_sort_articles,
     cmd_clear_selection,
+    cmd_items_on_demand,
 };
 constexpr unsigned menu_unhide_base = 3100;
 //! The Appearance submenu.
 constexpr unsigned menu_style_base = 5000;
+//! The Items submenu (Settings::tracks_menu): the track context menu's ids, base + its own id.
+constexpr unsigned menu_items_base = 20000;
+constexpr unsigned menu_items_count = 40000;
 
 //! Appends a list of items with ids id_base + i. Up to 30 stay flat; longer lists become
 //! submenus of 25 named "first - last", the one holding `checked` ticked. Not columns:
@@ -1367,6 +1371,11 @@ bool SwitcherCore::core_message(HWND wnd, UINT msg, WPARAM wp, LPARAM lp, LRESUL
         case WM_CREATE: on_create(wnd); return true;
         case WM_DESTROY: on_destroy(); return true;
         case WM_SIZE: layout(); return true;
+        case WM_INITMENUPOPUP:
+            // Only the tab menu's Items submenu; anything else is not ours.
+            if (items_menu_ == nullptr || reinterpret_cast<HMENU>(wp) != items_menu_) return false;
+            fill_items_menu();
+            return true;
         case WM_GETMINMAXINFO: {
             auto* mmi = reinterpret_cast<MINMAXINFO*>(lp);
             mmi->ptMinTrackSize.x = static_cast<LONG>(limits_.min_width);
@@ -1981,11 +1990,49 @@ void SwitcherCore::show_tab_menu(std::size_t strip_index, POINT screen, bool ful
             AppendMenuW(menu, MF_SEPARATOR, 0, nullptr);
             append_style_menu(menu);
             AppendMenuW(menu, MF_STRING, cmd_configure, L"Configure...");
+            if (clicked != SIZE_MAX && settings_.tracks_menu != TracksMenu::hidden) {
+                // Last, after a separator, as in foobar2000's own Playlist Tabs. Counting is cheap;
+                // the context menu itself is built only when wanted.
+                auto pm = playlist_manager::get();
+                std::size_t tracks = 0;
+                for (const std::size_t p : targets) tracks += pm->playlist_get_item_count(p);
+                const UINT none = tracks == 0 ? MF_GRAYED : 0;
+                AppendMenuW(menu, MF_SEPARATOR, 0, nullptr);
+                if (settings_.tracks_menu == TracksMenu::on_demand) {
+                    AppendMenuW(menu, MF_STRING | none, cmd_items_on_demand, L"Items...");
+                } else if (HMENU sub = CreatePopupMenu(); sub != nullptr) {
+                    AppendMenuW(menu, MF_POPUP | none, reinterpret_cast<UINT_PTR>(sub), L"Items");
+                    items_menu_ = sub;
+                    items_playlists_ = targets;
+                }
+            }
         }
-        const UINT cmd = static_cast<UINT>(TrackPopupMenu(menu, TPM_RIGHTBUTTON | TPM_NONOTIFY | TPM_RETURNCMD,
-                                                          screen.x, screen.y, 0, self, nullptr));
+        // Without TPM_NONOTIFY only when the Items submenu needs its WM_INITMENUPOPUP.
+        const UINT notify = items_menu_ != nullptr ? 0 : TPM_NONOTIFY;
+        const UINT cmd = static_cast<UINT>(
+            TrackPopupMenu(menu, TPM_RIGHTBUTTON | notify | TPM_RETURNCMD, screen.x, screen.y, 0, self, nullptr));
         DestroyMenu(menu);
         menu = nullptr;
+        items_menu_ = nullptr; // destroyed with the menu
+        items_playlists_.clear();
+        if (const contextmenu_manager::ptr manager = std::move(items_manager_); manager.is_valid()) {
+            // A track command: the context menu holds its own list of tracks.
+            if (cmd >= menu_items_base && cmd < menu_items_base + menu_items_count) {
+                (void)manager->execute_by_id(cmd - menu_items_base);
+                return;
+            }
+        }
+        if (cmd == cmd_items_on_demand) {
+            // Its own menu, where the tab menu was.
+            const metadb_handle_list tracks = tracks_of(targets);
+            if (tracks.get_count() != 0) {
+                contextmenu_manager::ptr manager = contextmenu_manager::g_create();
+                manager->init_context_ex(tracks, contextmenu_manager::flag_show_shortcuts,
+                                         contextmenu_item::caller_playlist_manager);
+                manager->win32_run_menu_popup(self, &screen);
+            }
+            return;
+        }
         // The playlists may have changed while the menu was open: act only if they did not.
         const bool same = snapshot == visible_;
         if (cmd >= menu_style_base && cmd < style_last) {
@@ -2106,6 +2153,50 @@ void SwitcherCore::show_tab_menu(std::size_t strip_index, POINT screen, bool ful
         log::warn(std::string("tab menu failed: ") + e.what());
     }
     if (menu != nullptr) DestroyMenu(menu);
+    items_menu_ = nullptr;
+    items_playlists_.clear();
+    items_manager_.release();
+}
+
+void SwitcherCore::fill_items_menu() noexcept {
+    if (items_menu_ == nullptr || items_manager_.is_valid()) return;
+    try {
+        const metadb_handle_list tracks = tracks_of(items_playlists_);
+        if (tracks.get_count() == 0) {
+            AppendMenuW(items_menu_, MF_STRING | MF_GRAYED, 0, L"No tracks");
+            return;
+        }
+        const std::uint64_t t_start = perf::enabled() ? perf::now() : 0;
+        contextmenu_manager::ptr manager = contextmenu_manager::g_create();
+        manager->init_context_ex(tracks, contextmenu_manager::flag_show_shortcuts, contextmenu_item::caller_playlist_manager);
+        manager->win32_build_menu(items_menu_, static_cast<int>(menu_items_base), static_cast<int>(menu_items_count));
+        menu_helpers::win32_auto_mnemonics(items_menu_);
+        items_manager_ = std::move(manager);
+        if (t_start != 0) {
+            pfc::string_formatter f;
+            f << "tracks context menu for " << pfc::format_uint(tracks.get_count()) << " tracks: "
+              << pfc::format_float(perf::elapsed_ms(t_start, perf::now()), 0, 3) << " ms";
+            log::info(f.get_ptr());
+        }
+    } catch (const std::exception& e) {
+        log::warn(std::string("tracks context menu failed: ") + e.what());
+    }
+}
+
+metadb_handle_list SwitcherCore::tracks_of(const std::vector<std::size_t>& playlists) {
+    metadb_handle_list tracks;
+    auto pm = playlist_manager::get();
+    for (const std::size_t p : playlists) {
+        if (p >= pm->get_playlist_count()) continue;
+        if (playlists.size() == 1) {
+            pm->playlist_get_all_items(p, tracks);
+        } else {
+            metadb_handle_list part;
+            pm->playlist_get_all_items(p, part);
+            tracks.add_items(part);
+        }
+    }
+    return tracks;
 }
 
 std::size_t SwitcherCore::duplicate_playlist(std::size_t playlist) noexcept {

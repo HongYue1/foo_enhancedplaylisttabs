@@ -386,6 +386,8 @@ BOOL ConfigureDialog::on_init_dialog(CWindow, LPARAM) {
                                  side ? L"Pin to the bottom" : L"Pin to the right", L"Hide tab", L"Remove playlist",
                                  L"Lock / unlock playlist"});
     }
+    // Order matters: TracksMenu.
+    fill_combo(control(IDC_TRACKS_MENU), {L"Hidden", L"Items submenu at the end", L"Items... entry that opens it"});
     // Order matters: DropName.
     fill_combo(control(IDC_DROP_NAME), {L"Creates a playlist named after the folder",
                                         L"Creates a playlist named New Playlist (n)"});
@@ -505,6 +507,7 @@ void ConfigureDialog::settings_to_controls() {
     check(IDC_CONFIRM_REMOVE, s.confirm_remove);
     check(IDC_DBLCLICK_NEW, s.dblclick_new);
     select(IDC_DBLCLICK_TAB, static_cast<int>(s.dblclick_action));
+    select(IDC_TRACKS_MENU, static_cast<int>(s.tracks_menu));
     select(IDC_DROP_NAME, static_cast<int>(s.drop_name));
     check(IDC_FOLLOW_PLAYING, s.follow_playing);
 
@@ -618,6 +621,7 @@ void ConfigureDialog::settings_from_controls() {
     s.confirm_remove = checked(IDC_CONFIRM_REMOVE);
     s.dblclick_new = checked(IDC_DBLCLICK_NEW);
     pick(IDC_DBLCLICK_TAB, s.dblclick_action);
+    pick(IDC_TRACKS_MENU, s.tracks_menu);
     pick(IDC_DROP_NAME, s.drop_name);
     s.follow_playing = checked(IDC_FOLLOW_PLAYING);
 
