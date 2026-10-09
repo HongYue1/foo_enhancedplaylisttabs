@@ -112,6 +112,10 @@ public:
     virtual void on_strip_metrics_changed() noexcept = 0;
     //! Middle click on a tab.
     virtual void on_strip_middle_click(std::size_t index) noexcept = 0;
+    //! A plain click (press and release, no drag) on the tab that was already active, when
+    //! Settings::click_active_action is set. With a double-click action set it comes only once the
+    //! double-click time has passed without a second click.
+    virtual void on_strip_click_active(std::size_t index) noexcept { (void)index; }
     //! Double click on a tab, or on empty strip space (no_index; never the chevron). Return true
     //! if it did something; false makes the second click an ordinary press (activate, drag).
     virtual bool on_strip_double_click(std::size_t index) noexcept {
@@ -281,7 +285,11 @@ private:
     void on_mouse_move(POINT pt) noexcept;
     void on_mouse_leave() noexcept;
     //! `keys`: the MK_* flags of the mouse message.
-    void on_button_down(POINT pt, WPARAM keys) noexcept;
+    //! second_click: the second press of a double click that did nothing; it never runs the
+    //! click-on-the-active-tab action.
+    void on_button_down(POINT pt, WPARAM keys, bool second_click = false) noexcept;
+    void cancel_click_active() noexcept;
+    void on_click_timer() noexcept;
     void on_double_click(POINT pt, WPARAM keys) noexcept;
     //! Ctrl / Shift + click on tab `index`. True if it changed the selection (no activation then).
     bool select_click(std::size_t index, WPARAM keys) noexcept;
@@ -489,6 +497,12 @@ private:
     std::uint64_t drag_key_{0}; //!< the grabbed tab
     //! A plain press on a selected tab: the selection ends on release, unless it was dragged.
     bool clear_on_release_{false};
+    //! A plain press on the tab that was already active (Settings::click_active_action): the
+    //! action runs on release.
+    bool click_active_armed_{false};
+    //! Waiting out the double-click time (a double-click action is set): the tab and its key.
+    std::size_t click_pending_index_{no_index};
+    std::uint64_t click_pending_key_{0};
 
     bool hover_fading_{false};
     std::uint64_t hover_tick_{0};

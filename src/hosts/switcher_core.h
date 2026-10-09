@@ -173,12 +173,22 @@ protected:
     void sort_playlists(SortKey key, std::vector<std::size_t> positions) noexcept;
     //! Moves playlist `from` to position `to` (playlist indices).
     void move_playlist(std::size_t from, std::size_t to) noexcept;
-    void duplicate_playlist(std::size_t playlist) noexcept;
+    //! A copy right after `playlist`, activated. Returns its index, or SIZE_MAX.
+    std::size_t duplicate_playlist(std::size_t playlist) noexcept;
+    //! A mouse gesture's action (Settings::click_active_action and the others) on `playlist`.
+    //! False when there is nothing to do (TabAction::none, no such playlist).
+    bool run_tab_action(TabAction action, std::size_t playlist) noexcept;
+    //! TabAction::show_now_playing: activates `playlist` and shows the playing track if it plays
+    //! from there (focused and selected), else the focused track.
+    void show_now_playing(std::size_t playlist) noexcept;
+    //! TabAction::jump_first_last: focuses and selects the first track, or the last when the
+    //! focus is already on the first.
+    void jump_first_last(std::size_t playlist) noexcept;
     void save_playlist(std::size_t playlist) noexcept;
     void load_playlist() noexcept;
     //! Perf log only: creates 500 "EPT perf nnn" playlists, or removes them all.
     void perf_test_playlists(bool create) noexcept;
-    //! Middle-click removal: asks first (Settings::confirm_remove, playlists with tracks). True to go ahead.
+    //! Removal by a mouse gesture: asks first (Settings::confirm_remove, playlists with tracks). True to go ahead.
     bool confirm_remove(std::size_t playlist) noexcept;
     void rename_playlist(std::size_t playlist) noexcept;
     void remove_playlist(std::size_t playlist) noexcept;
@@ -222,6 +232,7 @@ protected:
     void on_strip_metrics_changed() noexcept override;
     void on_strip_middle_click(std::size_t index) noexcept override;
     bool on_strip_double_click(std::size_t index) noexcept override;
+    void on_strip_click_active(std::size_t index) noexcept override;
     void on_strip_reorder(std::size_t from, std::size_t to) noexcept override;
     void on_strip_reorder_block(std::span<const std::size_t> moved, std::size_t neighbour,
                                 bool before) noexcept override;

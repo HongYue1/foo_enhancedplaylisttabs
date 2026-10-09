@@ -93,6 +93,96 @@ void step(StripWindow& strip, const char* name, std::uint32_t want_layouts, std:
     expect(same_as_model(strip), name);
 }
 
+//! Counts the click gestures (Settings::click_active_action and the double click).
+class ClickListener : public NullListener {
+public:
+    int activations = 0;
+    int clicks_active = 0;
+    int double_clicks = 0;
+    bool double_click_does_something = true;
+    void on_strip_activate(std::size_t) noexcept override { ++activations; }
+    void on_strip_click_active(std::size_t) noexcept override { ++clicks_active; }
+    bool on_strip_double_click(std::size_t) noexcept override {
+        ++double_clicks;
+        return double_click_does_something;
+    }
+};
+
+//! A click on the active tab runs its action once, on release; a click on another tab never
+//! does; with a double-click action set it waits for the double-click time, and a double click
+//! never also runs it.
+void click_test(HWND parent) {
+    ClickListener listener;
+    StripWindow strip;
+    if (!strip.create(parent, listener)) {
+        expect(false, "click test: create");
+        return;
+    }
+    strip.set_dpi_override(96);
+    Settings s;
+    s.click_active_action = TabAction::show_now_playing;
+    strip.set_settings(s);
+    StripFont font;
+    font.family = L"Segoe UI";
+    font.size_dip = 12.0f;
+    strip.set_font(font);
+    SetWindowPos(strip.hwnd(), nullptr, 0, 0, 800, strip.thickness(), SWP_NOZORDER | SWP_NOACTIVATE);
+    const std::vector<std::wstring> labels = {L"Alpha", L"Bravo", L"Charlie"};
+    strip.set_labels(labels, 0);
+    const auto centre = [&strip](std::size_t i) {
+        const RECT r = strip.tab_bounds(i);
+        return MAKELPARAM((r.left + r.right) / 2, (r.top + r.bottom) / 2);
+    };
+    const HWND w = strip.hwnd();
+    const auto click = [&](std::size_t i) {
+        SendMessageW(w, WM_LBUTTONDOWN, MK_LBUTTON, centre(i));
+        SendMessageW(w, WM_LBUTTONUP, 0, centre(i));
+    };
+    const auto double_click = [&](std::size_t i) {
+        click(i);
+        SendMessageW(w, WM_LBUTTONDBLCLK, MK_LBUTTON, centre(i));
+        SendMessageW(w, WM_LBUTTONUP, 0, centre(i));
+    };
+    const auto pump_timers = [w](UINT ms) {
+        const ULONGLONG end = GetTickCount64() + ms;
+        MSG msg{};
+        while (GetTickCount64() < end) {
+            while (PeekMessageW(&msg, w, WM_TIMER, WM_TIMER, PM_REMOVE)) DispatchMessageW(&msg);
+            Sleep(5);
+        }
+    };
+    const UINT wait = GetDoubleClickTime() + 150;
+
+    click(0);
+    expect(listener.clicks_active == 1, "click test: a click on the active tab runs the action at once");
+    click(1);
+    expect(listener.clicks_active == 1 && listener.activations == 1, "click test: a click on another tab only switches");
+    listener.double_click_does_something = false;
+    double_click(0);
+    expect(listener.clicks_active == 2, "click test: no double-click action: the second click does not run it again");
+
+    s.dblclick_action = TabAction::rename;
+    strip.set_settings(s);
+    listener.double_click_does_something = true;
+    click(0);
+    expect(listener.clicks_active == 2, "click test: with a double-click action it waits");
+    pump_timers(wait);
+    expect(listener.clicks_active == 3, "click test: ... and runs after the double-click time");
+    const int doubles = listener.double_clicks;
+    double_click(0);
+    pump_timers(wait);
+    expect(listener.clicks_active == 3 && listener.double_clicks == doubles + 1,
+           "click test: a double click runs only the double-click action");
+
+    s.click_active_action = TabAction::none;
+    strip.set_settings(s);
+    click(0);
+    pump_timers(wait);
+    expect(listener.clicks_active == 3, "click test: none: nothing");
+    strip.destroy();
+    std::printf("  click test done: %d click-active calls\n", listener.clicks_active);
+}
+
 } // namespace
 
 int main() {
@@ -253,6 +343,7 @@ int main() {
 
         strip.destroy();
     }
+    click_test(parent);
     DestroyWindow(parent);
     gfx::shutdown();
     CoUninitialize();

@@ -49,7 +49,9 @@ Settings odd_settings() {
     s.animations = false;
     s.animation_ms = 220;
     s.wheel_cycles = false;
-    s.middle_click = MiddleClick::toggle_lock;
+    s.middle_action = TabAction::show_now_playing;
+    s.click_active_action = TabAction::jump_first_last;
+    s.unpin_pinned = false;
     s.pin_icon = false;
     s.sort_descending = true;
     s.sort_ignore_articles = false;
@@ -70,7 +72,7 @@ Settings odd_settings() {
     s.title_mode = TitleMode::format;
     s.title_format = "%title% [%size%] \xE2\x99\xAA";
     s.dblclick_new = false;
-    s.dblclick_tab = TabDoubleClick::rename;
+    s.dblclick_action = TabAction::duplicate;
     s.follow_playing = true;
     s.drop_name = DropName::autoname;
     s.confirm_remove = false;
@@ -149,6 +151,36 @@ int main() {
               "unknown section kept");
         check(back.settings == d.settings, "known settings unaffected by unknown ones");
         check(encode_instance(back) == encode_instance(d), "second save is byte-identical");
+    }
+    {
+        // Settings from 1.4 (no tab action ids): the old middle / double-click values map onto
+        // the action list. Simulated by renaming the new ids to ones nobody knows.
+        InstanceData d;
+        d.settings.middle_action = TabAction::toggle_lock;
+        d.settings.dblclick_action = TabAction::rename;
+        Bytes bytes = encode_instance(d);
+        const auto hide_id = [&bytes](std::uint8_t id, std::uint8_t replacement) {
+            for (std::size_t i = 0; i + 4 < bytes.size(); ++i) {
+                if (bytes[i] == id && bytes[i + 1] == 0 && bytes[i + 2] == 1 && bytes[i + 3] == 0) {
+                    bytes[i] = replacement;
+                    bytes[i + 1] = 3; // id 0x03xx
+                    return true;
+                }
+            }
+            return false;
+        };
+        const bool hidden = hide_id(76, 1) && hide_id(77, 2);
+        const InstanceData back = decode_instance(bytes);
+        check(hidden && back.settings.middle_action == TabAction::toggle_lock, "1.4 middle click: toggle lock");
+        check(hidden && back.settings.dblclick_action == TabAction::rename, "1.4 double click: rename");
+        // An action 1.4 lacks is stored for it as "nothing".
+        InstanceData n;
+        n.settings.middle_action = TabAction::pin_end;
+        Bytes nb = encode_instance(n);
+        bytes = nb;
+        const bool hidden2 = hide_id(77, 2);
+        check(hidden2 && decode_instance(bytes).settings.middle_action == TabAction::none, "1.4 sees a new action as nothing");
+        check(decode_instance(nb).settings.middle_action == TabAction::pin_end, "the new id wins over the legacy one");
     }
     {
         // Every truncation reads without crashing and never invents a child config.

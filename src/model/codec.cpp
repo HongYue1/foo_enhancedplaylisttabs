@@ -255,7 +255,21 @@ enum SettingId : std::uint16_t {
     s_active_hover_line_width = 72,
     s_active_hover_line_opacity = 73,
     s_active_hover_lighten = 74,
+    s_click_active_action = 75,
+    s_dblclick_action = 76,
+    s_middle_action = 77,
+    s_unpin_pinned = 78,
 };
+
+//! Settings::middle_action as the value builds up to 1.4 read (0 for an action they lack).
+[[nodiscard]] std::uint8_t legacy_middle_click(TabAction action) noexcept {
+    switch (action) {
+    case TabAction::hide_tab: return 1;
+    case TabAction::remove_playlist: return 2;
+    case TabAction::toggle_lock: return 3;
+    default: return 0;
+    }
+}
 
 void write_settings(Writer& w, const Settings& s) {
     field_u8(w, s_position, static_cast<std::uint8_t>(s.position));
@@ -275,7 +289,7 @@ void write_settings(Writer& w, const Settings& s) {
     field_u8(w, s_animations, s.animations ? 1 : 0);
     field_u16(w, s_animation_ms, s.animation_ms);
     field_u8(w, s_wheel, s.wheel_cycles ? 1 : 0);
-    field_u8(w, s_middle_click, static_cast<std::uint8_t>(s.middle_click));
+    field_u8(w, s_middle_click, legacy_middle_click(s.middle_action));
     field_u8(w, s_drag, s.drag_reorder ? 1 : 0);
     field_u16(w, s_hot_zone, s.hot_zone);
     field_u16(w, s_reveal_delay, s.reveal_delay_ms);
@@ -295,7 +309,7 @@ void write_settings(Writer& w, const Settings& s) {
     field_u8(w, s_title_mode, static_cast<std::uint8_t>(s.title_mode));
     field_string(w, s_title_format, s.title_format);
     field_u8(w, s_dblclick_new, s.dblclick_new ? 1 : 0);
-    field_u8(w, s_dblclick_tab, static_cast<std::uint8_t>(s.dblclick_tab));
+    field_u8(w, s_dblclick_tab, s.dblclick_action == TabAction::rename ? 1 : 0);
     field_u8(w, s_follow_playing, s.follow_playing ? 1 : 0);
     field_u8(w, s_drop_name, static_cast<std::uint8_t>(s.drop_name));
     field_u8(w, s_confirm_remove, s.confirm_remove ? 1 : 0);
@@ -327,6 +341,11 @@ void write_settings(Writer& w, const Settings& s) {
     field_u8(w, s_active_hover_line_width, s.active_hover_line_width);
     field_u8(w, s_active_hover_line_opacity, s.active_hover_line_opacity);
     field_u8(w, s_active_hover_lighten, s.active_hover_lighten ? 1 : 0);
+    // After the legacy s_middle_click / s_dblclick_tab, so these win when both are read.
+    field_u8(w, s_click_active_action, static_cast<std::uint8_t>(s.click_active_action));
+    field_u8(w, s_dblclick_action, static_cast<std::uint8_t>(s.dblclick_action));
+    field_u8(w, s_middle_action, static_cast<std::uint8_t>(s.middle_action));
+    field_u8(w, s_unpin_pinned, s.unpin_pinned ? 1 : 0);
 }
 
 //! Returns false for an id this build does not know.
@@ -349,7 +368,14 @@ bool read_setting(Settings& s, std::uint16_t id, std::span<const std::uint8_t> v
     case s_animations: read_bool(v, s.animations); return true;
     case s_animation_ms: read_u16(v, s.animation_ms); return true;
     case s_wheel: read_bool(v, s.wheel_cycles); return true;
-    case s_middle_click: read_enum(v, s.middle_click, MiddleClick::toggle_lock); return true;
+    case s_middle_click: {
+        // Up to 1.4: nothing, hide tab, remove playlist, toggle lock.
+        std::uint8_t old = 0;
+        read_u8(v, old);
+        constexpr TabAction map[] = {TabAction::none, TabAction::hide_tab, TabAction::remove_playlist, TabAction::toggle_lock};
+        if (old < std::size(map)) s.middle_action = map[old];
+        return true;
+    }
     case s_drag: read_bool(v, s.drag_reorder); return true;
     case s_hot_zone: read_u16(v, s.hot_zone); return true;
     case s_reveal_delay: read_u16(v, s.reveal_delay_ms); return true;
@@ -371,7 +397,13 @@ bool read_setting(Settings& s, std::uint16_t id, std::span<const std::uint8_t> v
     case s_title_mode: read_enum(v, s.title_mode, TitleMode::format); return true;
     case s_title_format: s.title_format.assign(reinterpret_cast<const char*>(v.data()), v.size()); return true;
     case s_dblclick_new: read_bool(v, s.dblclick_new); return true;
-    case s_dblclick_tab: read_enum(v, s.dblclick_tab, TabDoubleClick::rename); return true;
+    case s_dblclick_tab: {
+        // Up to 1.4: nothing, rename.
+        std::uint8_t old = 0;
+        read_u8(v, old);
+        if (old <= 1) s.dblclick_action = old == 1 ? TabAction::rename : TabAction::none;
+        return true;
+    }
     case s_follow_playing: read_bool(v, s.follow_playing); return true;
     case s_drop_name: read_enum(v, s.drop_name, DropName::autoname); return true;
     case s_confirm_remove: read_bool(v, s.confirm_remove); return true;
@@ -403,6 +435,10 @@ bool read_setting(Settings& s, std::uint16_t id, std::span<const std::uint8_t> v
     case s_active_hover_line_width: read_u8(v, s.active_hover_line_width); return true;
     case s_active_hover_line_opacity: read_u8(v, s.active_hover_line_opacity); return true;
     case s_active_hover_lighten: read_bool(v, s.active_hover_lighten); return true;
+    case s_click_active_action: read_enum(v, s.click_active_action, TabAction::toggle_lock); return true;
+    case s_dblclick_action: read_enum(v, s.dblclick_action, TabAction::toggle_lock); return true;
+    case s_middle_action: read_enum(v, s.middle_action, TabAction::toggle_lock); return true;
+    case s_unpin_pinned: read_bool(v, s.unpin_pinned); return true;
     default: return false;
     }
 }

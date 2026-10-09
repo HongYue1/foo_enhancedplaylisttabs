@@ -37,6 +37,8 @@ constexpr UINT_PTR theme_timer = 0xB712;
 constexpr double theme_fade_ms = 300.0;
 //! Settings::hover_fade: the hover mark fades in and out.
 constexpr UINT_PTR hover_timer = 0xB713;
+//! Settings::click_active_action with a double-click action set: waits for a second click.
+constexpr UINT_PTR click_timer = 0xB714;
 
 [[nodiscard]] HINSTANCE module_instance() noexcept {
     return reinterpret_cast<HINSTANCE>(&__ImageBase);
@@ -1617,6 +1619,10 @@ LRESULT StripWindow::on_message(UINT msg, WPARAM wp, LPARAM lp) noexcept {
             on_hover_timer();
             return 0;
         }
+        if (wp == click_timer) {
+            on_click_timer();
+            return 0;
+        }
         if (wp == drag_timer) {
             if (!dragging_) {
                 KillTimer(wnd_, drag_timer);
@@ -1941,7 +1947,8 @@ void StripWindow::on_mouse_leave() noexcept {
     }
 }
 
-void StripWindow::on_button_down(POINT pt, WPARAM keys) noexcept {
+void StripWindow::on_button_down(POINT pt, WPARAM keys, bool second_click) noexcept {
+    click_active_armed_ = false;
     if (listener_ == nullptr) return;
     if (chevron_hit(pt)) {
         const RECT r = chevron_rect();
@@ -1968,6 +1975,9 @@ void StripWindow::on_button_down(POINT pt, WPARAM keys) noexcept {
         }
         return;
     }
+    // A click that ends a multiple selection is only that, not a click on the active tab.
+    const bool click_active = !second_click && index == active_ && selected_count_ == 0 &&
+                              settings_.click_active_action != TabAction::none;
     // A plain click ends a multiple selection and starts the next range here. On a selected tab
     // that waits for the release: pressing it may start dragging the selection.
     clear_on_release_ = items_[index].selected && selected_count_ >= 2;
@@ -1979,7 +1989,22 @@ void StripWindow::on_button_down(POINT pt, WPARAM keys) noexcept {
     if (wnd_ == nullptr || index >= items_.size()) return;
     press_index_ = index;
     press_pt_ = pt;
+    click_active_armed_ = click_active;
     SetCapture(wnd_);
+}
+
+void StripWindow::cancel_click_active() noexcept {
+    click_active_armed_ = false;
+    if (click_pending_index_ != no_index && wnd_ != nullptr) KillTimer(wnd_, click_timer);
+    click_pending_index_ = no_index;
+}
+
+void StripWindow::on_click_timer() noexcept {
+    const std::size_t index = click_pending_index_;
+    cancel_click_active();
+    // Still the same tab, still active: the tabs may have changed in the meantime.
+    if (listener_ == nullptr || index >= items_.size() || index != active_ || items_[index].spec.key != click_pending_key_) return;
+    listener_->on_strip_click_active(index);
 }
 
 void StripWindow::set_drop_hover(std::size_t index) noexcept {
@@ -1992,9 +2017,11 @@ void StripWindow::set_drop_hover(std::size_t index) noexcept {
 
 void StripWindow::on_double_click(POINT pt, WPARAM keys) noexcept {
     // CS_DBLCLKS turns the second press into this message instead of WM_LBUTTONDOWN.
+    // The first click's action waits no longer: this is a double click.
+    cancel_click_active();
     if (listener_ == nullptr || dragging_) return;
     // Ctrl / Shift: the second click selects like the first; no double-click action.
-    if ((keys & (MK_CONTROL | MK_SHIFT)) != 0) return on_button_down(pt, keys);
+    if ((keys & (MK_CONTROL | MK_SHIFT)) != 0) return on_button_down(pt, keys, true);
     if (!chevron_hit(pt)) {
         const std::size_t index = hit_test(pt);
         // The listener may open a dialog or change the tabs: no press is armed (a held capture
@@ -2002,7 +2029,7 @@ void StripWindow::on_double_click(POINT pt, WPARAM keys) noexcept {
         if (listener_->on_strip_double_click(index)) return;
         if (wnd_ == nullptr) return;
     }
-    on_button_down(pt, keys);
+    on_button_down(pt, keys, true);
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -2108,13 +2135,30 @@ const std::wstring& StripWindow::pin_glyph() noexcept {
     return glyph;
 }
 
-void StripWindow::on_button_up(POINT) noexcept {
+void StripWindow::on_button_up(POINT pt) noexcept {
+    const std::size_t pressed = press_index_;
+    const bool dragged = dragging_;
+    const bool click_active = click_active_armed_;
+    click_active_armed_ = false;
     press_index_ = no_index;
     if (dragging_) end_drag(true);
     if (clear_on_release_) clear_selection();
     clear_on_release_ = false;
     // Also when the pressed tab went away meanwhile (erase_item cleared the press).
     if (GetCapture() == wnd_) ReleaseCapture();
+    // Settings::click_active_action: released over the same tab, not dragged, still active.
+    if (!click_active || dragged || listener_ == nullptr || wnd_ == nullptr || pressed >= items_.size() ||
+        pressed != active_ || hit_test(pt) != pressed) {
+        return;
+    }
+    if (settings_.dblclick_action == TabAction::none) {
+        listener_->on_strip_click_active(pressed);
+        return;
+    }
+    // A second click may still make this a double click: wait for it (on_double_click cancels).
+    click_pending_index_ = pressed;
+    click_pending_key_ = items_[pressed].spec.key;
+    SetTimer(wnd_, click_timer, GetDoubleClickTime(), nullptr);
 }
 
 void StripWindow::on_middle_up(POINT pt) noexcept {

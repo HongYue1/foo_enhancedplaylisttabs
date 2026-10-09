@@ -243,23 +243,38 @@ BEGIN
     EDITTEXT        IDC_SWITCH_MS,99,37,28,12,ES_AUTOHSCROLL | ES_NUMBER
     LTEXT           "ms: the indicator slides (50-1000)",IDC_STATIC,131,39,162,8
 
-    LTEXT           "Mouse and keyboard",IDC_STATIC,7,57,286,8
+    LTEXT           "Keyboard",IDC_STATIC,7,57,286,8
     CONTROL         "",IDC_STATIC,"Static",SS_ETCHEDHORZ,7,67,286,1
-    CONTROL         "Switch tabs with the mouse wheel",IDC_WHEEL,"Button",BS_AUTOCHECKBOX | WS_TABSTOP,12,74,140,10
-    CONTROL         "Drag tabs to reorder them",IDC_DRAG,"Button",BS_AUTOCHECKBOX | WS_TABSTOP,155,74,138,10
-    CONTROL         "Ctrl+Tab and Ctrl+Shift+Tab cycle the tabs",IDC_CTRL_TAB,"Button",BS_AUTOCHECKBOX | WS_TABSTOP,12,88,281,10
-    LTEXT           "Middle click:",IDC_STATIC,12,104,84,8
-    COMBOBOX        IDC_MIDDLE,99,102,130,80,CBS_DROPDOWNLIST | WS_VSCROLL | WS_TABSTOP
-    CONTROL         "Ask first when the playlist has tracks",IDC_CONFIRM_REMOVE,"Button",BS_AUTOCHECKBOX | WS_TABSTOP,99,118,194,10
+    CONTROL         "Ctrl+Tab and Ctrl+Shift+Tab cycle the tabs",IDC_CTRL_TAB,"Button",BS_AUTOCHECKBOX | WS_TABSTOP,12,74,281,10
 
-    LTEXT           "Playlists",IDC_STATIC,7,138,286,8
-    CONTROL         "",IDC_STATIC,"Static",SS_ETCHEDHORZ,7,148,286,1
-    CONTROL         "Double-click empty strip space for a new playlist",IDC_DBLCLICK_NEW,"Button",BS_AUTOCHECKBOX | WS_TABSTOP,12,155,281,10
-    LTEXT           "Double-click a tab:",IDC_STATIC,12,171,84,8
-    COMBOBOX        IDC_DBLCLICK_TAB,99,169,130,80,CBS_DROPDOWNLIST | WS_VSCROLL | WS_TABSTOP
-    LTEXT           "Drop on empty space:",IDC_STATIC,12,187,84,8
-    COMBOBOX        IDC_DROP_NAME,99,185,194,80,CBS_DROPDOWNLIST | WS_VSCROLL | WS_TABSTOP
-    CONTROL         "Switch to the playing playlist when playback starts",IDC_FOLLOW_PLAYING,"Button",BS_AUTOCHECKBOX | WS_TABSTOP,12,203,281,10
+    LTEXT           "Playlists",IDC_STATIC,7,94,286,8
+    CONTROL         "",IDC_STATIC,"Static",SS_ETCHEDHORZ,7,104,286,1
+    LTEXT           "Drop on empty space:",IDC_STATIC,12,113,84,8
+    COMBOBOX        IDC_DROP_NAME,99,111,194,80,CBS_DROPDOWNLIST | WS_VSCROLL | WS_TABSTOP
+    CONTROL         "Switch to the playing playlist when playback starts",IDC_FOLLOW_PLAYING,"Button",BS_AUTOCHECKBOX | WS_TABSTOP,12,129,281,10
+END
+
+IDD_PAGE_MOUSE DIALOGEX 0, 0, 300, 218
+STYLE DS_SETFONT | DS_CONTROL | WS_CHILD
+FONT 8, "Microsoft Sans Serif", 400, 0, 0x0
+BEGIN
+    LTEXT           "Tabs",IDC_STATIC,7,4,286,8
+    CONTROL         "",IDC_STATIC,"Static",SS_ETCHEDHORZ,7,14,286,1
+    LTEXT           "Click the active tab:",IDC_STATIC,12,23,84,8
+    COMBOBOX        IDC_CLICK_ACTIVE,99,21,150,120,CBS_DROPDOWNLIST | WS_VSCROLL | WS_TABSTOP
+    LTEXT           "Double-click a tab:",IDC_STATIC,12,39,84,8
+    COMBOBOX        IDC_DBLCLICK_TAB,99,37,150,120,CBS_DROPDOWNLIST | WS_VSCROLL | WS_TABSTOP
+    LTEXT           "Middle-click a tab:",IDC_STATIC,12,55,84,8
+    COMBOBOX        IDC_MIDDLE,99,53,150,120,CBS_DROPDOWNLIST | WS_VSCROLL | WS_TABSTOP
+    CONTROL         "Unpin when the tab is already pinned",IDC_UNPIN_PINNED,"Button",BS_AUTOCHECKBOX | WS_TABSTOP,99,70,194,10
+    CONTROL         "Ask first when the playlist has tracks",IDC_CONFIRM_REMOVE,"Button",BS_AUTOCHECKBOX | WS_TABSTOP,99,83,194,10
+    LTEXT           "A click on another tab always just switches to it. With a double-click action set, a click on the active tab waits out the double-click time first.",IDC_STATIC,12,98,281,24
+
+    LTEXT           "Strip",IDC_STATIC,7,128,286,8
+    CONTROL         "",IDC_STATIC,"Static",SS_ETCHEDHORZ,7,138,286,1
+    CONTROL         "Switch tabs with the mouse wheel",IDC_WHEEL,"Button",BS_AUTOCHECKBOX | WS_TABSTOP,12,145,281,10
+    CONTROL         "Drag tabs to reorder them",IDC_DRAG,"Button",BS_AUTOCHECKBOX | WS_TABSTOP,12,159,281,10
+    CONTROL         "Double-click empty strip space for a new playlist",IDC_DBLCLICK_NEW,"Button",BS_AUTOCHECKBOX | WS_TABSTOP,12,173,281,10
 END
 
 IDD_PAGE_AUTOHIDE DIALOGEX 0, 0, 300, 218

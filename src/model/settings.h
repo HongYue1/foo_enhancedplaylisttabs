@@ -25,11 +25,25 @@ enum class Indicator : std::uint8_t { underline, pill, none, tab, tab_outline };
 //! highlight: Default UI's highlight colour, Columns UI's active item frame.
 enum class AccentSource : std::uint8_t { selection, custom, cover, highlight };
 enum class StripBackground : std::uint8_t { theme, custom, accent_tint };
-//! What a middle click on a tab does. remove_playlist goes through the playlist manager, so the
-//! playlist can be brought back with File > Restore playlist.
-enum class MiddleClick : std::uint8_t { nothing, hide_tab, remove_playlist, toggle_lock };
-//! What a double click on a tab does.
-enum class TabDoubleClick : std::uint8_t { nothing, rename };
+//! What a mouse gesture on a tab does (Settings::click_active_action, dblclick_action,
+//! middle_action). show_now_playing: the playing track if it plays from that playlist, else the
+//! focused one. jump_first_last: the first track, or the last when already on the first.
+//! duplicate: a copy right after it, activated, with the rename dialog open. pin_*: see
+//! Settings::unpin_pinned. remove_playlist goes through the playlist manager, so the playlist can
+//! be brought back with File > Restore playlist.
+//! New values go at the end: the codec stores the number.
+enum class TabAction : std::uint8_t {
+    none,
+    show_now_playing,
+    jump_first_last,
+    rename,
+    duplicate,
+    pin_start,
+    pin_end,
+    hide_tab,
+    remove_playlist,
+    toggle_lock,
+};
 //! The name of a playlist made by dropping files on empty strip space.
 enum class DropName : std::uint8_t { folder, autoname };
 //! Where a tab's title comes from.
@@ -134,8 +148,13 @@ struct Settings {
     bool active_hover_lighten{false};
 
     bool wheel_cycles{true};
-    MiddleClick middle_click{MiddleClick::nothing};
-    //! A middle click that removes a playlist with tracks asks first.
+    //! A click on the tab that is already active (a click on another one just switches).
+    TabAction click_active_action{TabAction::none};
+    TabAction dblclick_action{TabAction::none};
+    TabAction middle_action{TabAction::none};
+    //! A pin action on a tab already pinned there unpins it.
+    bool unpin_pinned{true};
+    //! A gesture that removes a playlist with tracks asks first.
     bool confirm_remove{true};
     //! Dragging a tab reorders the playlists themselves.
     bool drag_reorder{true};
@@ -152,7 +171,6 @@ struct Settings {
     //! A double click on empty strip space creates a playlist (the playlist manager's own
     //! "New Playlist", "New Playlist (2)"... naming) and activates it.
     bool dblclick_new{true};
-    TabDoubleClick dblclick_tab{TabDoubleClick::nothing};
     //! folder: the dropped folder's name (or the common parent of the dropped files), falling
     //! back to autoname when there is none (tracks from another playlist, several drives).
     DropName drop_name{DropName::folder};

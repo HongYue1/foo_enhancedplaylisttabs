@@ -114,11 +114,14 @@ list of playlists; long lists are grouped in submenus of 25.
 - **Click** a tab to activate its playlist. **Ctrl+click** adds or removes a tab from the selection
   (the first one brings the active tab along); **Shift+click** selects a range. A plain click on a
   tab or on empty strip space, or **Esc** (while the strip has the keyboard focus, which a Ctrl or
-  Shift+click gives it), clears the selection. **Double-click** a tab to rename it (optional) or empty
-  space for a new playlist.
-- **Middle click** does nothing, hides the tab, removes the playlist or locks / unlocks it (your
-  choice). Removing a
-  playlist that has tracks asks first, unless you turn that off.
+  Shift+click gives it), clears the selection. **Double-click** empty space for a new playlist.
+- **Click the active tab**, **double-click a tab** and **middle-click a tab** each run an action you
+  choose (none by default): show now playing (the playing track if it plays from that playlist,
+  else the focused one), jump to the first / last track, rename, duplicate (the copy opens the
+  rename dialog), pin to the left / right (a second time unpins, unless you turn that off), hide
+  the tab, remove the playlist (asks first when it has tracks, unless you turn that off), lock /
+  unlock. With a double-click action set, a click on the active tab runs its action after the
+  double-click time.
 - **Mouse wheel** over the strip switches to the previous or next tab.
 - **Ctrl+Tab / Ctrl+Shift+Tab** cycle the tabs while the keyboard focus is inside the element.
 - **Drag** a tab to reorder it, or drag files and tracks onto the strip. Dragging a selected tab
@@ -133,11 +136,12 @@ resets them.
 | --- | --- |
 | Strip | Position (top, bottom, left, right); thickness in DIPs (0 = from the font); rotate text on side strips; tab width (fit the title, all equal, fill the strip) and alignment; overflow chevron at the end or the start; shorten titles to fit before showing the chevron; longest title before the ellipsis; padding and spacing |
 | Look | Active tab: indicator (underline, pill, tab, outlined tab, text only), its line width and fill strength. Every tab: chips, corner radius |
-| Hover | How a hovered tab other than the active one is marked: fill, outline, outline and fill, underline, underline and fill, or no mark; in the text colour, the accent or a custom colour; the title brightens, stays as it is or takes the hover colour; fill strength, line width and line opacity (each automatic or set); optional fade in and out with its length |
-| Colours | Accent (UI selection colour, custom, from the playing cover, UI highlight colour / Columns UI active item frame); strip background (UI background, custom, tinted with the accent) and tint strength |
+| Hover | Separately for the other tabs and the active tab: how a hovered tab is marked (fill, outline, outline and fill, underline, underline and fill, no mark; the active tab also a plain wash, the default); in the text colour, the accent or a custom colour; fill strength, line width and line opacity (each automatic or set). Other tabs: the title brightens, stays as it is or takes the hover colour. Active tab: lighten the text colour. Optional fade in and out with its length |
+| Colours | Accent (UI selection colour, custom, from the playing cover, UI highlight colour / Columns UI active item frame); strip background (UI background, custom, tinted with the accent) and tint strength; transparent background (shows what the layout paints behind the strip, such as a Columns UI theme's image; not while auto-hide shows the strip over the panel) |
 | Fonts | Tab font (default: the host's font) and up to three fallback fonts for characters it cannot draw |
 | Titles | The playlist's name or title formatting, with a live preview, examples, the list of fields and **Functions** for the full title formatting reference |
-| Behaviour | Show the strip (always, only with two or more playlists, auto-hide, never); animate switches; mouse wheel; drag to reorder; Ctrl+Tab; middle click and whether removing asks first; double-click on empty space and on a tab; what dropping on empty space names the new playlist; switch to the playing playlist when playback starts |
+| Behaviour | Show the strip (always, only with two or more playlists, auto-hide, never); animate switches; Ctrl+Tab; what dropping on empty space names the new playlist; switch to the playing playlist when playback starts |
+| Mouse | Actions for a click on the active tab, a double-click and a middle-click on a tab; unpin when already pinned; ask before removing; mouse wheel; drag to reorder; double-click on empty space |
 | Auto-hide | Reveal over the playlist (fastest) or push it aside; animation (none, slide, fade) and length; hot zone size; delays before showing and hiding; how long the strip stays after a switch |
 
 ### Title fields

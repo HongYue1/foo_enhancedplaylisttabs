@@ -34,7 +34,7 @@ namespace ept {
 
 namespace {
 
-constexpr int page_count = 8;
+constexpr int page_count = 9;
 
 //! A control by id on the dialog itself or on one of its pages (ids are unique across pages).
 [[nodiscard]] HWND find_control(HWND dialog, int control) {
@@ -336,7 +336,7 @@ BOOL ConfigureDialog::on_init_dialog(CWindow, LPARAM) {
     create_pages();
     {
         const HWND tabs = ::GetDlgItem(m_hWnd, IDC_TABS);
-        const wchar_t* const names[page_count] = {L"Strip", L"Look", L"Hover", L"Colours", L"Fonts", L"Titles", L"Behaviour", L"Auto-hide"};
+        const wchar_t* const names[page_count] = {L"Strip", L"Look", L"Hover", L"Colours", L"Fonts", L"Titles", L"Behaviour", L"Mouse", L"Auto-hide"};
         for (int i = 0; i < page_count; ++i) {
             TCITEMW item{};
             item.mask = TCIF_TEXT;
@@ -376,10 +376,16 @@ BOOL ConfigureDialog::on_init_dialog(CWindow, LPARAM) {
     fill_combo(control(IDC_ACCENT_SOURCE),
                {theme_accent.c_str(), L"Custom colour", L"From the playing cover", theme_highlight.c_str()});
     fill_combo(control(IDC_BACKGROUND), {theme_background.c_str(), L"Custom colour", L"Tinted with the accent"});
-    // Order matters: MiddleClick and TabDoubleClick, one for one.
-    fill_combo(control(IDC_MIDDLE),
-               {L"Does nothing", L"Hides the tab", L"Removes the playlist", L"Locks / unlocks the playlist"});
-    fill_combo(control(IDC_DBLCLICK_TAB), {L"Does nothing", L"Renames the playlist"});
+    // Order matters: TabAction, one for one. The pin wording follows the strip's side, as in the
+    // tab menu.
+    const StripPosition position = state_.settings.position;
+    const bool side = position == StripPosition::left || position == StripPosition::right;
+    for (const int id : {IDC_CLICK_ACTIVE, IDC_DBLCLICK_TAB, IDC_MIDDLE}) {
+        fill_combo(control(id), {L"None", L"Show now playing", L"Jump to the first / last track", L"Rename playlist",
+                                 L"Duplicate playlist", side ? L"Pin to the top" : L"Pin to the left",
+                                 side ? L"Pin to the bottom" : L"Pin to the right", L"Hide tab", L"Remove playlist",
+                                 L"Lock / unlock playlist"});
+    }
     // Order matters: DropName.
     fill_combo(control(IDC_DROP_NAME), {L"Creates a playlist named after the folder",
                                         L"Creates a playlist named New Playlist (n)"});
@@ -493,10 +499,12 @@ void ConfigureDialog::settings_to_controls() {
     check(IDC_WHEEL, s.wheel_cycles);
     check(IDC_DRAG, s.drag_reorder);
     check(IDC_CTRL_TAB, s.ctrl_tab);
-    select(IDC_MIDDLE, static_cast<int>(s.middle_click));
+    select(IDC_CLICK_ACTIVE, static_cast<int>(s.click_active_action));
+    select(IDC_MIDDLE, static_cast<int>(s.middle_action));
+    check(IDC_UNPIN_PINNED, s.unpin_pinned);
     check(IDC_CONFIRM_REMOVE, s.confirm_remove);
     check(IDC_DBLCLICK_NEW, s.dblclick_new);
-    select(IDC_DBLCLICK_TAB, static_cast<int>(s.dblclick_tab));
+    select(IDC_DBLCLICK_TAB, static_cast<int>(s.dblclick_action));
     select(IDC_DROP_NAME, static_cast<int>(s.drop_name));
     check(IDC_FOLLOW_PLAYING, s.follow_playing);
 
@@ -604,10 +612,12 @@ void ConfigureDialog::settings_from_controls() {
     s.wheel_cycles = checked(IDC_WHEEL);
     s.drag_reorder = checked(IDC_DRAG);
     s.ctrl_tab = checked(IDC_CTRL_TAB);
-    pick(IDC_MIDDLE, s.middle_click);
+    pick(IDC_CLICK_ACTIVE, s.click_active_action);
+    pick(IDC_MIDDLE, s.middle_action);
+    s.unpin_pinned = checked(IDC_UNPIN_PINNED);
     s.confirm_remove = checked(IDC_CONFIRM_REMOVE);
     s.dblclick_new = checked(IDC_DBLCLICK_NEW);
-    pick(IDC_DBLCLICK_TAB, s.dblclick_tab);
+    pick(IDC_DBLCLICK_TAB, s.dblclick_action);
     pick(IDC_DROP_NAME, s.drop_name);
     s.follow_playing = checked(IDC_FOLLOW_PLAYING);
 
@@ -736,7 +746,14 @@ void ConfigureDialog::update_enabled() {
     enable(IDC_HOVER_FADE_MS, s.hover_fade && fades);
 
     enable(IDC_SWITCH_MS, s.animations);
-    enable(IDC_CONFIRM_REMOVE, s.middle_click == MiddleClick::remove_playlist);
+    const auto any_action = [&s](TabAction a, TabAction b = TabAction::none) {
+        for (const TabAction action : {s.click_active_action, s.dblclick_action, s.middle_action}) {
+            if (action == a || (b != TabAction::none && action == b)) return true;
+        }
+        return false;
+    };
+    enable(IDC_CONFIRM_REMOVE, any_action(TabAction::remove_playlist));
+    enable(IDC_UNPIN_PINNED, any_action(TabAction::pin_start, TabAction::pin_end));
 
     const bool auto_hide = s.visibility == StripVisibility::auto_hide;
     for (const int id : {IDC_AH_MODE, IDC_AH_ANIM, IDC_AH_HOT_ZONE, IDC_AH_REVEAL, IDC_AH_HIDE, IDC_AH_LINGER}) {

@@ -123,6 +123,18 @@ state only through `set_label` / `enable` in `configure_dialog.cpp`: they skip n
 erase the page behind the control first (`repaint_behind`). A plain `SetWindowText` or
 `EnableWindow` piles the new text on the old, which looks bold and fringed (fixed in 1.2.3).
 
+### Mouse actions (Mouse page)
+
+- `Settings::click_active_action`, `dblclick_action`, `middle_action` share `TabAction`;
+  `SwitcherCore::run_tab_action` runs them. The codec still writes the 1.4 ids (`s_middle_click`,
+  `s_dblclick_tab`) with mapped values (0 for actions 1.4 lacks) before the new ids, and reads
+  them into the new fields; the new ids come later in the stream and win.
+- The strip arms the click-on-active action on a plain press of the tab that was already active
+  (not a selection-clearing click, not the second press of a double click) and runs it on
+  release over the same tab without a drag. With a double-click action set it waits
+  `GetDoubleClickTime()` (`click_timer`); `WM_LBUTTONDBLCLK` cancels it. `model_test`
+  `click_test` covers the timing.
+
 ### Hover styles (Hover page)
 
 - `Settings::hover_*` style the tabs other than the active one, `active_hover_*` the active tab

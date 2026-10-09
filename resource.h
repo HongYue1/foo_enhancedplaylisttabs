@@ -14,9 +14,10 @@
 #define IDD_PAGE_FONTS 106
 #define IDD_PAGE_TITLES 107
 #define IDD_PAGE_BEHAVIOUR 108
-#define IDD_PAGE_AUTOHIDE 109
-#define IDD_RENAME 110
-#define IDD_CONFIRM 111
+#define IDD_PAGE_MOUSE 109
+#define IDD_PAGE_AUTOHIDE 110
+#define IDD_RENAME 111
+#define IDD_CONFIRM 112
 
 #define IDC_TABS 1000
 // Where the pages go; never shown.
@@ -117,3 +118,7 @@
 #define IDC_HOVER_FADE_MS 1313
 #define IDC_HOVER_TARGET 1314
 #define IDC_HOVER_LIGHTEN 1315
+
+// Mouse
+#define IDC_CLICK_ACTIVE 1400
+#define IDC_UNPIN_PINNED 1401

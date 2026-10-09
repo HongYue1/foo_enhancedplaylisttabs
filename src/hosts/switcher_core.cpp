@@ -1700,24 +1700,78 @@ bool SwitcherCore::on_strip_double_click(std::size_t index) noexcept {
         new_playlist(SIZE_MAX);
         return true;
     }
-    if (settings_.dblclick_tab != TabDoubleClick::rename) return false;
-    const std::size_t playlist = playlist_of_strip(index);
-    if (playlist == SIZE_MAX) return false;
-    rename_playlist(playlist); // beeps itself for a locked playlist
-    return true;
+    return run_tab_action(settings_.dblclick_action, playlist_of_strip(index));
 }
 
 void SwitcherCore::on_strip_middle_click(std::size_t index) noexcept {
-    const std::size_t playlist = playlist_of_strip(index);
-    if (playlist == SIZE_MAX) return;
-    switch (settings_.middle_click) {
-    case MiddleClick::hide_tab: set_playlist_hidden(playlist, true); break;
-    case MiddleClick::remove_playlist:
+    (void)run_tab_action(settings_.middle_action, playlist_of_strip(index));
+}
+
+void SwitcherCore::on_strip_click_active(std::size_t index) noexcept {
+    (void)run_tab_action(settings_.click_active_action, playlist_of_strip(index));
+}
+
+bool SwitcherCore::run_tab_action(TabAction action, std::size_t playlist) noexcept {
+    if (action == TabAction::none || playlist >= playlists::entries().size()) return false;
+    switch (action) {
+    case TabAction::show_now_playing: show_now_playing(playlist); break;
+    case TabAction::jump_first_last: jump_first_last(playlist); break;
+    case TabAction::rename: rename_playlist(playlist); break; // beeps itself for a locked playlist
+    case TabAction::duplicate:
+        if (const std::size_t copy = duplicate_playlist(playlist); copy != SIZE_MAX) rename_playlist(copy);
+        break;
+    case TabAction::pin_start:
+    case TabAction::pin_end: {
+        const std::uint8_t want = action == TabAction::pin_start ? 1 : 2;
+        const bool there = playlists::entries()[playlist].pin() == want;
+        (void)playlists::set_pin(playlist, there && settings_.unpin_pinned ? std::uint8_t{0} : want);
+        break;
+    }
+    case TabAction::hide_tab: set_playlist_hidden(playlist, true); break;
+    case TabAction::remove_playlist:
         if (confirm_remove(playlist)) remove_playlist(playlist);
         break;
-    case MiddleClick::toggle_lock: toggle_lock(playlist); break;
-    case MiddleClick::nothing:
-    default: break;
+    case TabAction::toggle_lock: toggle_lock(playlist); break;
+    case TabAction::none: break;
+    }
+    return true;
+}
+
+void SwitcherCore::show_now_playing(std::size_t playlist) noexcept {
+    try {
+        auto pm = playlist_manager::get();
+        if (playlist >= pm->get_playlist_count()) return;
+        activate_playlist(playlist, true);
+        t_size playing_playlist = SIZE_MAX;
+        t_size playing_item = SIZE_MAX;
+        if (pm->get_playing_item_location(&playing_playlist, &playing_item) && playing_playlist == playlist &&
+            playing_item < pm->playlist_get_item_count(playlist)) {
+            // As View > Show now playing does for the playing playlist.
+            pm->playlist_set_focus_item(playlist, playing_item);
+            pm->playlist_set_selection(playlist, pfc::bit_array_true(), pfc::bit_array_one(playing_item));
+            pm->playlist_ensure_visible(playlist, playing_item);
+            return;
+        }
+        const t_size focus = pm->playlist_get_focus_item(playlist);
+        if (focus < pm->playlist_get_item_count(playlist)) pm->playlist_ensure_visible(playlist, focus);
+    } catch (const std::exception& e) {
+        log::warn(std::string("show now playing failed: ") + e.what());
+    }
+}
+
+void SwitcherCore::jump_first_last(std::size_t playlist) noexcept {
+    try {
+        auto pm = playlist_manager::get();
+        if (playlist >= pm->get_playlist_count()) return;
+        activate_playlist(playlist, true);
+        const t_size count = pm->playlist_get_item_count(playlist);
+        if (count == 0) return;
+        const t_size target = pm->playlist_get_focus_item(playlist) == 0 ? count - 1 : 0;
+        pm->playlist_set_focus_item(playlist, target);
+        pm->playlist_set_selection(playlist, pfc::bit_array_true(), pfc::bit_array_one(target));
+        pm->playlist_ensure_visible(playlist, target);
+    } catch (const std::exception& e) {
+        log::warn(std::string("jump to first / last track failed: ") + e.what());
     }
 }
 
@@ -2013,7 +2067,7 @@ void SwitcherCore::show_tab_menu(std::size_t strip_index, POINT screen, bool ful
                 if (valid) rename_playlist(clicked);
                 break;
             case cmd_duplicate:
-                if (valid) duplicate_playlist(clicked);
+                if (valid) (void)duplicate_playlist(clicked);
                 break;
             case cmd_remove:
                 if (valid) remove_playlist(clicked);
@@ -2054,22 +2108,24 @@ void SwitcherCore::show_tab_menu(std::size_t strip_index, POINT screen, bool ful
     if (menu != nullptr) DestroyMenu(menu);
 }
 
-void SwitcherCore::duplicate_playlist(std::size_t playlist) noexcept {
+std::size_t SwitcherCore::duplicate_playlist(std::size_t playlist) noexcept {
     try {
         auto pm = playlist_manager::get();
-        if (playlist >= pm->get_playlist_count()) return;
+        if (playlist >= pm->get_playlist_count()) return SIZE_MAX;
         pfc::string8 name;
         pm->playlist_get_name(playlist, name);
         name << " (copy)";
         metadb_handle_list items;
         pm->playlist_get_all_items(playlist, items);
         const std::size_t created = pm->create_playlist(name, SIZE_MAX, playlist + 1);
-        if (created == SIZE_MAX) return;
+        if (created == SIZE_MAX) return SIZE_MAX;
         pm->playlist_add_items(created, items, bit_array_false());
         activate_playlist(created, true);
+        return created;
     } catch (const std::exception& e) {
         log::warn(std::string("duplicate playlist failed: ") + e.what());
     }
+    return SIZE_MAX;
 }
 
 namespace {
