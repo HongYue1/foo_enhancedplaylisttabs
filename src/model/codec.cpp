@@ -243,6 +243,7 @@ enum SettingId : std::uint16_t {
     s_hover_text = 64,
     s_hover_fade = 65,
     s_hover_fade_ms = 66,
+    s_transparent_background = 67,
 };
 
 void write_settings(Writer& w, const Settings& s) {
@@ -307,6 +308,7 @@ void write_settings(Writer& w, const Settings& s) {
     field_u8(w, s_hover_text, static_cast<std::uint8_t>(s.hover_text));
     field_u8(w, s_hover_fade, s.hover_fade ? 1 : 0);
     field_u16(w, s_hover_fade_ms, s.hover_fade_ms);
+    field_u8(w, s_transparent_background, s.transparent_background ? 1 : 0);
 }
 
 //! Returns false for an id this build does not know.
@@ -375,6 +377,7 @@ bool read_setting(Settings& s, std::uint16_t id, std::span<const std::uint8_t> v
     case s_hover_text: read_enum(v, s.hover_text, HoverText::colour); return true;
     case s_hover_fade: read_bool(v, s.hover_fade); return true;
     case s_hover_fade_ms: read_u16(v, s.hover_fade_ms); return true;
+    case s_transparent_background: read_bool(v, s.transparent_background); return true;
     default: return false;
     }
 }
