@@ -215,7 +215,9 @@ protected:
     void show_tab_menu(std::size_t strip_index, POINT screen, bool full) noexcept;
     void append_style_menu(HMENU menu) const noexcept;
     void run_style_command(unsigned command) noexcept;
-    bool run_configure(HWND parent);
+    //! `modeless`: the dialog stays open beside the element (only with a window; see
+    //! open_configure_dialog) and this returns false at once. True: OK in the modal dialog.
+    bool run_configure(HWND parent, bool modeless);
 
     // StripListener
     void on_strip_activate(std::size_t index) noexcept override;
@@ -236,6 +238,7 @@ protected:
     void on_hot_zone(bool inside, bool clicked) noexcept override;
     // ConfigureTarget
     void preview(const ConfigureState& state) noexcept override;
+    void configure_closed(bool ok, const ConfigureState& state) noexcept override;
     // cover::Listener
     void on_cover_accent_changed() noexcept override;
     void update_cover_subscription() noexcept;
@@ -354,6 +357,9 @@ protected:
     AhTimer ah_timer_{AhTimer::none};
     //! A menu (or a dialog from it) of this strip is open.
     bool menu_pin_{false};
+    //! The modeless Configure dialog, and what Cancel puts back. It pins the strip too.
+    HWND configure_wnd_{nullptr};
+    ConfigureState configure_original_;
     // The tab menu's Items submenu (Settings::tracks_menu): the empty popup, the playlists whose
     // tracks it shows, and the context menu built for them when the popup first opens.
     HMENU items_menu_{nullptr};

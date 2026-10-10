@@ -65,6 +65,10 @@ enum class HoverColour : std::uint8_t { text, accent, custom };
 //! colour (Settings::hover_text_argb, active_hover_text_argb).
 //! New values go at the end: the codec stores the number.
 enum class HoverText : std::uint8_t { brighten, unchanged, colour, custom };
+//! The colour of the chips (Settings::chip). neutral: the strip's text colour; accent: the accent
+//! (whatever its source, the cover's colour too).
+//! New values go at the end: the codec stores the number.
+enum class ChipColour : std::uint8_t { neutral, accent, custom };
 
 //! The tab font. An empty family follows the host (Columns UI's font for this component, or the
 //! Default UI's tab font). Fallback families are tried in order for characters the font lacks.
@@ -84,6 +88,8 @@ struct TabFont {
 //! light strip. The Look page's slider rests there while Automatic is ticked.
 inline constexpr std::uint8_t auto_fill_dark = 50;
 inline constexpr std::uint8_t auto_fill_light = 40;
+//! Settings::chip_strength 0 (automatic): the chips' fill in percent.
+inline constexpr std::uint8_t auto_chip_strength = 5;
 
 struct Settings {
     StripPosition position{StripPosition::top};
@@ -134,6 +140,11 @@ struct Settings {
     std::uint8_t transparent_opacity{0};
     std::uint16_t corner_radius{4};
     bool chip{false};
+    ChipColour chip_colour{ChipColour::neutral};
+    //! 0xAARRGGBB, used when chip_colour == custom.
+    std::uint32_t chip_argb{0xFF3EA6FFu};
+    //! Opacity of the chips' fill in percent; 0 = automatic (auto_chip_strength).
+    std::uint8_t chip_strength{0};
     //! Tab switches animate: the indicator (underline, pill or chip fill) slides.
     bool animations{true};
     //! Length of the auto-hide show/hide animation.

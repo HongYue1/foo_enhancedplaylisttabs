@@ -400,6 +400,9 @@ private:
     void draw_chevron() noexcept;
     //! Opacity of the active tab's accent fill (pill or chip).
     [[nodiscard]] float active_fill_alpha() const noexcept;
+    //! The chips' fill (Settings::chip_colour) and its opacity at rest (Settings::chip_strength).
+    [[nodiscard]] COLORREF chip_fill() const noexcept;
+    [[nodiscard]] float chip_fill_alpha() const noexcept;
     //! The active tab is filled with the accent (pill, tab, outlined tab).
     [[nodiscard]] bool accent_filled() const noexcept;
 

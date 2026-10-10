@@ -14,6 +14,7 @@
 #include <cmath>
 #include <optional>
 #include <string>
+#include <utility>
 #include <vector>
 
 #include "fbc/fonts.h"
@@ -340,6 +341,7 @@ const std::vector<SwitcherCore*>& SwitcherCore::live() noexcept { return live_li
 SwitcherCore::SwitcherCore() { live_list().push_back(this); }
 
 SwitcherCore::~SwitcherCore() {
+    close_configure_dialog(std::exchange(configure_wnd_, nullptr));
     std::erase(live_list(), this);
     if (subscribed_) playlists::unsubscribe(*this);
     ah_sync_parent_watch();
@@ -1582,6 +1584,11 @@ void SwitcherCore::on_destroy() noexcept {
     ah_shown_ = false;
     ah_progress_ = 0.0f;
     menu_pin_ = false;
+    if (configure_wnd_ != nullptr) {
+        // The element goes first: what the dialog previewed is not kept.
+        settings_ = configure_original_.settings;
+        close_configure_dialog(std::exchange(configure_wnd_, nullptr));
+    }
     hot_zone_drop_.detach();
     hot_zone_.destroy();
     ah_sync_parent_watch();
@@ -2276,7 +2283,7 @@ void SwitcherCore::show_tab_menu(std::size_t strip_index, POINT screen, bool ful
                     move_playlist(snapshot[strip_index], snapshot[strip_index + 1]);
                 }
                 break;
-            case cmd_configure: run_configure(self); break;
+            case cmd_configure: run_configure(self, true); break;
             default: break;
             }
         } else if (cmd >= menu_tab_base && cmd < menu_cmd_base) {
@@ -2630,7 +2637,9 @@ void SwitcherCore::append_style_menu(HMENU menu) const noexcept {
         radio(m, style_show_auto_hide, L"Auto-hide", s.visibility == StripVisibility::auto_hide);
     }
     AppendMenuW(style, MF_STRING | (s.pin_icon ? MF_CHECKED : 0), style_pin_icon, L"Pin icon on pinned tabs");
-    AppendMenuW(menu, MF_POPUP, reinterpret_cast<UINT_PTR>(style), L"Appearance");
+    // Greyed while the Configure dialog is open: its OK or Cancel would undo these.
+    AppendMenuW(menu, MF_POPUP | (configure_wnd_ != nullptr ? MF_GRAYED : 0), reinterpret_cast<UINT_PTR>(style),
+                L"Appearance");
 }
 
 void SwitcherCore::run_style_command(unsigned command) noexcept {
@@ -2693,8 +2702,14 @@ void SwitcherCore::run_style_command(unsigned command) noexcept {
     }
     apply_settings();
 }
-bool SwitcherCore::run_configure(HWND parent) {
+bool SwitcherCore::run_configure(HWND parent, bool modeless) {
     const auto keep_alive = host_keep_alive();
+    if (configure_wnd_ != nullptr) {
+        // One dialog per element: bring back the open one.
+        if (IsIconic(configure_wnd_) != FALSE) ShowWindow(configure_wnd_, SW_RESTORE);
+        SetForegroundWindow(configure_wnd_);
+        return false;
+    }
     ConfigureState original;
     original.settings = settings_;
     original.ui_name = host_ui_name();
@@ -2719,17 +2734,29 @@ bool SwitcherCore::run_configure(HWND parent) {
                                  : tenths_from_pixels(std::fabs(static_cast<float>(font.font.lfHeight)), font.font_dpi);
     } catch (...) {
     }
+    // Owned by the window the user is in: Columns UI's Layout page passes the main window,
+    // which would put the dialog behind Preferences.
+    HWND owner = GetActiveWindow();
+    if (owner == nullptr || IsWindowEnabled(owner) == FALSE) {
+        owner = parent != nullptr ? GetAncestor(parent, GA_ROOT) : core_api::get_main_window();
+    }
+    if (modeless && core_wnd() != nullptr) {
+        try {
+            configure_original_ = original;
+            configure_wnd_ = open_configure_dialog(owner, original, *this);
+        } catch (const std::exception& e) {
+            log::warn(std::string("the Configure dialog failed: ") + e.what());
+        }
+        if (configure_wnd_ != nullptr) {
+            ah_evaluate(); // an auto-hidden strip stays shown while the dialog is open
+            return false;
+        }
+    }
     ConfigureState state = original;
     bool ok = false;
     const bool pinned = menu_pin_; // already set when opened from the tab menu
     menu_pin_ = true;              // an auto-hidden strip stays shown while the dialog is open
     try {
-        // Owned by the window the user is in: Columns UI's Layout page passes the main window,
-        // which would put the dialog behind Preferences.
-        HWND owner = GetActiveWindow();
-        if (owner == nullptr || IsWindowEnabled(owner) == FALSE) {
-            owner = parent != nullptr ? GetAncestor(parent, GA_ROOT) : core_api::get_main_window();
-        }
         ok = run_configure_dialog(owner, state, *this, core_wnd() != nullptr);
     } catch (const std::exception& e) {
         log::warn(std::string("the Configure dialog failed: ") + e.what());
@@ -2739,6 +2766,13 @@ bool SwitcherCore::run_configure(HWND parent) {
     // Cancel puts back what the live preview changed.
     preview(ok ? state : original);
     return ok;
+}
+
+void SwitcherCore::configure_closed(bool ok, const ConfigureState& state) noexcept {
+    configure_wnd_ = nullptr;
+    // Cancel puts back what the live preview changed.
+    preview(ok ? state : configure_original_);
+    ah_evaluate();
 }
 
 void SwitcherCore::preview(const ConfigureState& state) noexcept {
@@ -2892,7 +2926,7 @@ void CALLBACK SwitcherCore::ah_on_parent_change(HWINEVENTHOOK, DWORD event, HWND
 
 bool SwitcherCore::ah_pointer_or_pinned() const noexcept {
     const HWND strip = strip_.hwnd();
-    if (menu_pin_ || strip_.dragging() || drop_hovering_) return true;
+    if (menu_pin_ || configure_wnd_ != nullptr || strip_.dragging() || drop_hovering_) return true;
     if (strip != nullptr && (GetCapture() == strip || GetFocus() == strip)) return true;
     POINT pt{};
     if (!GetCursorPos(&pt)) return false;

@@ -626,7 +626,7 @@ void DuiSwitcher::edit_mode_context_menu_command(const POINT&, bool, unsigned id
     case edit_replace: child_request_replace(); break;
     case edit_copy: ui_element_common_methods::get()->copy(child_config()); break;
     case edit_paste: host_paste_element(child_id); break;
-    case edit_configure: run_configure(wnd_); break;
+    case edit_configure: run_configure(wnd_, true); break;
     default: break;
     }
 }
@@ -639,7 +639,7 @@ void DuiSwitcher::host_edit_mode_context_menu_build(unsigned, const POINT&, bool
 void DuiSwitcher::host_edit_mode_context_menu_command(unsigned, const POINT&, bool, unsigned cmd, unsigned id_base) {
     if (cmd < id_base) return;
     const service_ptr_t<service_base> keep_alive = host_keep_alive();
-    if (cmd - id_base == child_configure) run_configure(wnd_);
+    if (cmd - id_base == child_configure) run_configure(wnd_, true);
 }
 
 void DuiSwitcher::host_replace_element(unsigned, const GUID& guid) {

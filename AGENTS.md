@@ -87,6 +87,15 @@ splitter dividers match Columns UI. Both ported from Better Tabs.
 - The Fonts page's Default shows the host size read back from whole pixels with
   `tenths_from_pixels` (`src/model/font_size.h`): 11 px at 96 DPI is 8 pt, not 8.3.
 
+- The Configure dialog is modeless when the element has a window (tab menu, Default UI edit
+  menu): `run_configure(parent, true)` → `open_configure_dialog`, so the strip can be hovered and
+  used while it is open. It owns its state copy, is always live, registers with
+  `modeless_dialog_manager` and deletes itself; OK / Cancel (or its owner closing) reach
+  `SwitcherCore::configure_closed`, which applies the result or `configure_original_`.
+  `configure_wnd_` pins an auto-hidden strip, makes a second Configure focus the open dialog and
+  greys the Appearance submenu (its changes would be lost on OK / Cancel). `on_destroy` closes the
+  dialog quietly (`close_configure_dialog`, no callback). Columns UI's Layout page stays modal
+  (`show_config_popup`, it reads `get_config` after).
 - Long menu lists use `append_long_list` (submenus of 25; dark menus can't draw
   `MF_MENUBARBREAK` columns).
 - Confirmations use `run_confirm_dialog` (`MessageBox` can't be dark).
@@ -178,10 +187,14 @@ in dark mode (fixed in 1.2.3).
   `strong_fill`, so the active title is checked for contrast against the fill. The Look page's
   slider rests on the matching value (`ConfigureState::dark`). Tests that need the title as drawn
   set `accent_strength` below 40 (the render tests pass it to `StripTheme::active_fill`).
-- The Hover page edits one set at a time ("Settings for:"): switching it reloads the shared
-  controls without reading them first (`hover_to_controls`), title combo and title colour
-  included (`HoverFields::text`, `text_argb`). The fade is shared by both sets, so it is the
-  first row, above "Settings for:".
+- The Hover page shows both sets side by side ("Other tabs" | "The active tab"): one control
+  set each (`HoverSet` in `hover_sets`: `HoverFields` + `HoverIds`, `IDC_HOVER_*` and
+  `IDC_HOVER_ACTIVE_*`); `hover_to_controls` / `hover_from_controls` / `hover_values` /
+  `hover_enabled` run per set. The fade is shared by both sets: the first row, above the columns.
+- Chips (Look page): `chip_colour` (`ChipColour`: neutral = the text colour, accent = whatever
+  the accent source gives, the cover's colour too, custom = `chip_argb`) and `chip_strength`
+  (0 = `auto_chip_strength`, 5 %; else 2-60). `StripWindow::chip_fill` / `chip_fill_alpha`; from
+  `strong_fill` on the title is checked for contrast against the chip unless it is a picked colour.
 - The fade keeps a `hover_level` per `Item` (so it moves with reorders) and is read only while
   `hover_fading_`; otherwise `index == hover_` decides. Anything that resets `hover_` on an item
   change must call `stop_hover_fade()`.

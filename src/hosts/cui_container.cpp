@@ -71,8 +71,9 @@ public:
     void import_config(stream_reader* reader, t_size size, abort_callback& abort) override;
     void export_config(stream_writer* writer, abort_callback& abort) const override;
     bool have_config_popup() const override { return true; }
-    //! Also called by the Layout page on an instance without a window (it reads get_config after).
-    bool show_config_popup(HWND parent) override { return run_configure(parent); }
+    //! Also called by the Layout page on an instance without a window (it reads get_config after):
+    //! modal, so the page gets the result.
+    bool show_config_popup(HWND parent) override { return run_configure(parent, false); }
 
     uie::container_window_v3_config get_window_config() override {
         // Not transparent: that would repaint the whole container on every move and resize.

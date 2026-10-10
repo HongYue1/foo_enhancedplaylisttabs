@@ -24,6 +24,7 @@ void clamp(Settings& s) noexcept {
     limit(s.linger_ms, 0, 5000);
     if (s.accent_strength != 0) s.accent_strength = std::clamp<std::uint8_t>(s.accent_strength, 5, 100);
     s.tint_strength = std::clamp<std::uint8_t>(s.tint_strength, 2, 60);
+    if (s.chip_strength != 0) s.chip_strength = std::clamp<std::uint8_t>(s.chip_strength, 2, 60);
     s.transparent_opacity = (std::min)(s.transparent_opacity, std::uint8_t{100});
     s.line_width = (std::min)(s.line_width, std::uint8_t{8});
     if (s.hover_fill_strength != 0) s.hover_fill_strength = std::clamp<std::uint8_t>(s.hover_fill_strength, 2, 80);
@@ -269,6 +270,9 @@ enum SettingId : std::uint16_t {
     s_custom_active_text = 85,
     s_active_text_argb = 86,
     s_transparent_opacity = 87,
+    s_chip_colour = 88,
+    s_chip_argb = 89,
+    s_chip_strength = 90,
 };
 
 //! Settings::middle_action as the value builds up to 1.4 read (0 for an action they lack).
@@ -366,6 +370,9 @@ void write_settings(Writer& w, const Settings& s) {
     field_u8(w, s_custom_active_text, s.custom_active_text ? 1 : 0);
     field_u32(w, s_active_text_argb, s.active_text_argb);
     field_u8(w, s_transparent_opacity, s.transparent_opacity);
+    field_u8(w, s_chip_colour, static_cast<std::uint8_t>(s.chip_colour));
+    field_u32(w, s_chip_argb, s.chip_argb);
+    field_u8(w, s_chip_strength, s.chip_strength);
 }
 
 //! Returns false for an id this build does not know.
@@ -473,6 +480,9 @@ bool read_setting(Settings& s, std::uint16_t id, std::span<const std::uint8_t> v
     case s_custom_active_text: read_bool(v, s.custom_active_text); return true;
     case s_active_text_argb: read_u32(v, s.active_text_argb); return true;
     case s_transparent_opacity: read_u8(v, s.transparent_opacity); return true;
+    case s_chip_colour: read_enum(v, s.chip_colour, ChipColour::custom); return true;
+    case s_chip_argb: read_u32(v, s.chip_argb); return true;
+    case s_chip_strength: read_u8(v, s.chip_strength); return true;
     default: return false;
     }
 }
