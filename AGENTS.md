@@ -144,7 +144,7 @@ in dark mode (fixed in 1.2.3).
 - `minmax_test`: Windows does not clamp a child to its own `WM_GETMINMAXINFO`, so a taller
   element means the host honoured the limits we reported.
 
-### Mouse actions (Mouse page)
+### Mouse actions (Input page)
 
 - `Settings::click_active_action`, `dblclick_action`, `middle_action` share `TabAction`;
   `SwitcherCore::run_tab_action` runs them. The codec still writes the 1.4 ids (`s_middle_click`,
@@ -187,17 +187,21 @@ in dark mode (fixed in 1.2.3).
   `strong_fill`, so the active title is checked for contrast against the fill. The Look page's
   slider rests on the matching value (`ConfigureState::dark`). Tests that need the title as drawn
   set `accent_strength` below 40 (the render tests pass it to `StripTheme::active_fill`).
-- The Hover page shows both sets side by side ("Other tabs" | "The active tab"): one control
+- The Hover page shows both sets side by side ("Other tabs" | "Active tab"): one control
   set each (`HoverSet` in `hover_sets`: `HoverFields` + `HoverIds`, `IDC_HOVER_*` and
   `IDC_HOVER_ACTIVE_*`); `hover_to_controls` / `hover_from_controls` / `hover_values` /
-  `hover_enabled` run per set. The fade is shared by both sets: the first row, above the columns.
+  `hover_enabled` run per set. The fade is shared by both sets and sits on the Animation page.
 - Chips (Look page): `chip_colour` (`ChipColour`: neutral ("Text colour") = the strip's text colour, a grey wash, accent = whatever
   the accent source gives, the cover's colour too, custom = `chip_argb`) and `chip_strength`
-  (0 = `auto_chip_dark` / `auto_chip_light`, 18 and 15 %; else 2-60). The active chip (underline,
+  (0 = `auto_chip_dark` / `auto_chip_light`, 18 and 15 %; else 2-100). The active chip (underline,
   text only) adds half its strength, at least half the hover wash, so it shows at any strength.
   `StripWindow::chip_fill` / `chip_fill_alpha`; from `strong_fill` on the title is checked for
   contrast against the chip unless it is a picked colour.
-- Ticking an Automatic box puts its slider back on the automatic value (`on_command`).
+- Ticking an Automatic box puts its slider (or line width) back on the automatic value
+  (`on_command`).
+- Pages (tab order = `page_ids` / `page_names` in `configure_dialog.cpp`): Strip, Look, Hover,
+  Colours, Fonts, Titles, Animation, Playlists, Input, Visibility. Layout rules are the style
+  profile at the top of the `.rc`; strengths are all 2-100 %.
 - The fade keeps a `hover_level` per `Item` (so it moves with reorders) and is read only while
   `hover_fading_`; otherwise `index == hover_` decides. Anything that resets `hover_` on an item
   change must call `stop_hover_fade()`.

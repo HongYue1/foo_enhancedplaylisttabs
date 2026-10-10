@@ -59,7 +59,7 @@ foobar2000, so you can hover and click the tabs while you try settings.
 | Key / mouse | Action |
 | --- | --- |
 | Click a tab | Activate its playlist |
-| Click the active tab, double-click or middle-click a tab | The action you picked on the Mouse page (none by default) |
+| Click the active tab, double-click or middle-click a tab | The action you picked on the Input page (none by default) |
 | Double-click empty space | New playlist |
 | Ctrl+click / Shift+click | Add a tab to or take it out of the selection / select a range |
 | Plain click, Esc | Clear the selection |
@@ -93,7 +93,7 @@ pin left or right (again to unpin), hide the tab, remove the playlist, lock or u
   stop), `%is_locked%`, `%lock_name%`, `%queue_total%` and `%playlist_queue_total%`. The Titles
   page lists them with examples. Track fields such as `%artist%` are empty, and literal brackets
   need quotes: `%title% '('%size%')'`.
-- **Tracks menu**: on the Behaviour page, add foobar2000's track menu to the tab menu as an
+- **Tracks menu**: on the Playlists page, add foobar2000's track menu to the tab menu as an
   **Items** submenu or an **Items...** entry. With several tabs selected it covers all of them.
 - **Transparency** only shows something when your layout draws a background behind the strip,
   such as a Columns UI theme. The auto-hide strip shown over the playlist stays solid. If the
