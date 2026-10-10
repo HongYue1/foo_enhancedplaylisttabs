@@ -23,8 +23,9 @@ general rules (file tools, builds through `cmd //c`, v145 toolset, background jo
 - Release: bump `src/version.h`, package, archive the PDBs as
   `../.archive/foo_enhancedplaylisttabs-<version>-symbols.zip`, commit, tag `v<version>`, push, and
   `gh release create` with the .fb2k-component attached. Only when the user says so.
-- foobar2000 cannot be run from here: the user tests the DLL in their install. Never claim
-  something works because it compiled.
+- Test in a foo_mcp instance (`../foobar2000-component-dev/references/testing-with-foo-mcp.md`):
+  `python ../foo_mcp/tools/fb.py install dui64 x64/Release/<dll>`, then drive it. Never claim
+  something works because it compiled; tooltips still need the user.
 
 ## Things to know
 
