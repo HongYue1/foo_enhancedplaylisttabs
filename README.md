@@ -16,8 +16,8 @@
 - **One row, no stacking.** Tabs that don't fit go to an overflow list, and the active tab always
   stays in view. Titles can shrink to fit first.
 - **Strip on any side**, with rotated titles on the left and right if you like.
-- **Your look**: underline, pill, tab, outlined tab or text-only indicator, chips (neutral, in the
-  accent or your own colour, any strength), corner radius, tab width and alignment, spacing, hover
+- **Your look**: underline, pill, tab, outlined tab or text-only indicator, chips (in the text colour,
+  the accent or your own colour, any strength), corner radius, tab width and alignment, spacing, hover
   styles (the active tab has its own), text colours, a tab font with fallbacks, and transparency
   with an adjustable background opacity.
 - **Accent colour** from the UI, a custom colour or the playing track's cover, and a strip

@@ -191,9 +191,9 @@ in dark mode (fixed in 1.2.3).
   set each (`HoverSet` in `hover_sets`: `HoverFields` + `HoverIds`, `IDC_HOVER_*` and
   `IDC_HOVER_ACTIVE_*`); `hover_to_controls` / `hover_from_controls` / `hover_values` /
   `hover_enabled` run per set. The fade is shared by both sets: the first row, above the columns.
-- Chips (Look page): `chip_colour` (`ChipColour`: neutral = the text colour, accent = whatever
+- Chips (Look page): `chip_colour` (`ChipColour`: neutral ("Text colour") = the strip's text colour, a grey wash, accent = whatever
   the accent source gives, the cover's colour too, custom = `chip_argb`) and `chip_strength`
-  (0 = `auto_chip_dark` / `auto_chip_light`, 12 and 10 %; else 2-60). The active chip (underline,
+  (0 = `auto_chip_dark` / `auto_chip_light`, 18 and 15 %; else 2-60). The active chip (underline,
   text only) adds half its strength, at least half the hover wash, so it shows at any strength.
   `StripWindow::chip_fill` / `chip_fill_alpha`; from `strong_fill` on the title is checked for
   contrast against the chip unless it is a picked colour.

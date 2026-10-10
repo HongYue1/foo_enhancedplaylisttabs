@@ -90,8 +90,8 @@ inline constexpr std::uint8_t auto_fill_dark = 50;
 inline constexpr std::uint8_t auto_fill_light = 40;
 //! Settings::chip_strength 0 (automatic): the chips' fill in percent on a dark and on a light
 //! strip. The Look page's slider rests there while Automatic is ticked.
-inline constexpr std::uint8_t auto_chip_dark = 12;
-inline constexpr std::uint8_t auto_chip_light = 10;
+inline constexpr std::uint8_t auto_chip_dark = 18;
+inline constexpr std::uint8_t auto_chip_light = 15;
 
 struct Settings {
     StripPosition position{StripPosition::top};

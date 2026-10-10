@@ -453,7 +453,7 @@ BOOL ConfigureDialog::on_init_dialog(CWindow, LPARAM) {
     // Order matters: Indicator, one for one.
     fill_combo(control(IDC_INDICATOR), {L"Underline", L"Pill", L"Text only", L"Tab", L"Outlined tab"});
     // Order matters: ChipColour.
-    fill_combo(control(IDC_CHIP_COLOUR), {L"Neutral", L"Accent colour", L"Custom colour"});
+    fill_combo(control(IDC_CHIP_COLOUR), {L"Text colour", L"Accent colour", L"Custom colour"});
     for (const HoverSet& set : hover_sets) {
         fill_hover_styles(set);
         // Order matters: HoverColour and HoverText, one for one.
