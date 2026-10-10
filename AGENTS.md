@@ -1,38 +1,24 @@
 # AGENTS.md - foo_enhancedplaylisttabs
 
-Notes for agents working on this component. See the workspace AGENTS.md one level up for the
-general rules (file tools, builds through `cmd //c`, v145 toolset, background jobs).
-
-## Build, test, release
+## Build, test, package
 
 - Build: `cmd //c build.bat Release x64` and `cmd //c build.bat Release Win32`. Read
-  `build.log` / `build-Win32.log`; 0 warnings is required (/W4 /WX). The build fails on
-  post-Windows 7 imports and on any Columns UI import on purpose (the DLL must load without
-  Columns UI). `build.bat` also builds `columns_ui-sdk-public` (its plain Release is /MT).
-- Tests: `cmd //c test\build_tests.bat` (codec, strip layout, strip render, z-order, keyed
-  model, title fields, playlist sort, child min/max). Results in `test/tests.out`; the last line must be
+  `build.log` / `build-Win32.log`; 0 warnings (/W4 /WX). The build fails on post-Windows 7
+  imports and on any Columns UI import on purpose (the DLL must load without Columns UI).
+  `build.bat` also builds `columns_ui-sdk-public` (its plain Release is /MT).
+- Tests: `cd test && cmd //c build_tests.bat` (codec, strip layout, strip render, z-order, keyed
+  model, title fields, playlist sort, child min/max). The last line of `test/tests.out` must be
   `EXIT=0 0 0 0 0 0 0 0`.
-- Cover colour and contrast (OKLab, APCA) are in the shared `../fb2k-common` library, with its
-  own tests (`fb2k-common/test/build_tests.bat`, including a golden test over the user's
-  covers). Change them there; Better Tabs, Media Bar and foo_onscreendisplay use the same code.
-- Dialogs: `cmd //c "..\foobar2000-component-dev\scripts\dialog_check.bat foo_enhancedplaylisttabs.rc"`
-  after every layout change; 0 problems required. Every page is 300 x 218 DU, the size of the host
-  placeholder (`IDC_PAGE_HOST`): a taller page is clipped at runtime.
+- Dialogs: run the dialog check on `foo_enhancedplaylisttabs.rc` after every layout change; 0
+  problems. Every page is 300 x 218 DU, the size of `IDC_PAGE_HOST`: a taller page is clipped.
 - Package: `cmd //c package.bat` -> `dist/foo_enhancedplaylisttabs.fb2k-component` (x86 at the
-  root, x64 in `x64/`) and `dist/symbols/*.pdb`.
-- Release: bump `src/version.h`, package, archive the PDBs as
-  `../.archive/foo_enhancedplaylisttabs-<version>-symbols.zip`, commit, tag `v<version>`, push, and
-  `gh release create` with the .fb2k-component attached. Only when the user says so.
-- Test in a foo_mcp instance (`../foobar2000-component-dev/references/testing-with-foo-mcp.md`):
-  `python ../foo_mcp/tools/fb.py install dui64 x64/Release/<dll>`, then drive it. Never claim
-  something works because it compiled; tooltips still need the user.
+  root, x64 in `x64/`) and `dist/symbols/*.pdb`. Version in `src/version.h`.
+- Cover colour and contrast come from `../fb2k-common` (shared with Better Tabs, Media Bar and
+  foo_onscreendisplay); change them there.
+- Better Tabs shares the strip, settings, Configure dialog and hosts (`SwitcherCore` here,
+  `TabsCore` there; keyed here, index-based there). Codec field ids differ; each keeps its own.
 
 ## Things to know
-
-### Include order
-
-`<helpers/foobar2000+atl.h>` must be the first SDK include in every .cpp (before anything that
-pulls in `<windows.h>`), or winsock definitions clash.
 
 ### Two hosts, one core
 
@@ -41,12 +27,11 @@ pulls in `<windows.h>`), or winsock definitions clash.
 `host_*` hooks. Keep UI calls out of the core. The Columns UI container is a
 `uie::splitter_window_v3` with `get_maximum_panel_count() == 1`; both hosts store the same
 `InstanceData` blob (settings + one child record). Colour/font client changes fan out to every
-live core, Default UI ones included (harmless). Use the `columns-ui-sdk` skill for SDK details.
+live core, Default UI ones included (harmless).
 
 The hosted child is shown with `ShowWindow`, never `SWP_SHOWWINDOW` (a Columns UI splitter child
 stays empty otherwise), and `fill_background` paints `HostColours::layout` for a child's DC so
-splitter dividers match Columns UI. Both ported from foo_bettertabs (see its AGENTS.md); not yet
-verified at run time here.
+splitter dividers match Columns UI. Both ported from Better Tabs.
 
 ### The playlists model
 
@@ -77,8 +62,8 @@ verified at run time here.
   the order before the drag; a cancel restores that order by key (`drag_keys_`).
 - Sorting by length sums on `fb2k::inCpuWorkerThread`; `apply_sort` runs on the main thread and
   drops the result if the keys or positions changed meanwhile.
-- Do not initialise a `static const std::wstring` from `cond ? std::wstring(a) : std::wstring(b)`:
-  under MSVC it came out empty (`pin_glyph`). Construct from the `const wchar_t*` instead.
+- `pin_glyph`: construct the `static const std::wstring` from a `const wchar_t*`, not from a
+  `cond ? std::wstring(a) : std::wstring(b)` (came out empty under MSVC).
 
 ### Multiple selection (strip)
 
@@ -102,34 +87,31 @@ verified at run time here.
 - The Fonts page's Default shows the host size read back from whole pixels with
   `tenths_from_pixels` (`src/model/font_size.h`): 11 px at 96 DPI is 8 pt, not 8.3.
 
-- Dark popup menus cannot draw `MF_MENUBARBREAK` columns (they turn light). Long lists use
-  `append_long_list` (submenus of 25).
-- `MessageBox` cannot be dark: use `run_confirm_dialog` (CDarkModeHooks).
-- Title formatting: `(`, `)`, `[`, `]`, `,` are syntax outside quotes. Examples must quote literal
-  ones: `%title% '('%size%')'`.
+- Long menu lists use `append_long_list` (submenus of 25; dark menus can't draw
+  `MF_MENUBARBREAK` columns).
+- Confirmations use `run_confirm_dialog` (`MessageBox` can't be dark).
+- Title examples quote literal `(` `)` `[` `]` `,`: `%title% '('%size%')'`.
 
 ### Auto-hide windows must stay the topmost children
 
-The hot zone and the overlay strip only work while they are above the hosted element's window in
-our z-order. `SetParent` back into the container and a child's own `SetWindowPos(HWND_TOP)` put it
-above them without telling us: Windows sends no message and no `EVENT_OBJECT_REORDER`
-(`test/zorder_test.cpp`). The core watches `EVENT_OBJECT_PARENTCHANGE` (one out-of-context hook
-per process, only while a hot zone exists) and re-raises in `WM_SETCURSOR` as a fallback. Layered
-children need a Windows 8+ manifest in a test exe (`test/compat.manifest`).
+The hot zone and overlay strip must stay above the hosted element's window. `SetParent` back into
+the container and a child's own `SetWindowPos(HWND_TOP)` bury them with no message and no
+`EVENT_OBJECT_REORDER`. The core watches `EVENT_OBJECT_PARENTCHANGE` (one out-of-context hook per
+process, only while a hot zone exists) and re-raises in `WM_SETCURSOR` as a fallback.
+`test/zorder_test.cpp` needs `test/compat.manifest` (layered children need Windows 8+).
 
 ### Performance checks
 
 Turn on Preferences > Advanced > Display > "Enhanced Playlist Tabs: log performance to the
 console". The strip-space menu then has "Perf: create 500 test playlists" / "Perf: remove the
 test playlists" (one summary line each; the per-event lines are suppressed during the bulk).
-Numbers from the user's runs are in the README.
+Measured numbers are in the README.
 
 ### Dialog labels in dark mode
 
-Static text is drawn on a transparent background in dark mode. Change a label's text or enabled
-state only through `set_label` / `enable` in `configure_dialog.cpp`: they skip no-op changes and
-erase the page behind the control first (`repaint_behind`). A plain `SetWindowText` or
-`EnableWindow` piles the new text on the old, which looks bold and fringed (fixed in 1.2.3).
+Change a label's text or enabled state only through `set_label` / `enable` in
+`configure_dialog.cpp` (`repaint_behind`); plain `SetWindowText` / `EnableWindow` piles text up
+in dark mode (fixed in 1.2.3).
 
 ### Transparent background
 
@@ -150,8 +132,8 @@ erase the page behind the control first (`repaint_behind`). A plain `SetWindowTe
   and the maximum along it, as Columns UI's own Playlist tabs report with no child. Up to 1.4
   the maximum stayed open and Panel Stack Splitter gave the element more height than the strip
   (forum report, not reproduced here: PSS is not installed).
-- Windows does not clamp a child window's size to its own `WM_GETMINMAXINFO` answer
-  (`minmax_test`): a taller element always means the host honoured the limits we reported.
+- `minmax_test`: Windows does not clamp a child to its own `WM_GETMINMAXINFO`, so a taller
+  element means the host honoured the limits we reported.
 
 ### Mouse actions (Mouse page)
 
@@ -199,8 +181,7 @@ erase the page behind the control first (`repaint_behind`). A plain `SetWindowTe
 - The Hover page edits one set at a time ("Settings for:"): switching it reloads the shared
   controls without reading them first (`hover_to_controls`), title combo and title colour
   included (`HoverFields::text`, `text_argb`). The fade is shared by both sets, so it is the
-  first row, above "Settings for:" (there was no room for its own section after the title
-  colour row).
+  first row, above "Settings for:".
 - The fade keeps a `hover_level` per `Item` (so it moves with reorders) and is read only while
   `hover_fading_`; otherwise `index == hover_` decides. Anything that resets `hover_` on an item
   change must call `stop_hover_fade()`.
@@ -209,8 +190,7 @@ erase the page behind the control first (`repaint_behind`). A plain `SetWindowTe
   `WM_MOUSELEAVE` ends the hover.
 - Pages are `IDD_PAGE_STRIP + i`, so the ids stay consecutive: Strip, Look, Hover, Colours, Fonts,
   then the rest.
-- `save_png` in `render_test` writes 24 bpp BGR: WIC's PNG encoder turns a 32 bpp request into
-  24 bpp, and the 32 bpp rows it was fed before scrambled every image in `test/out`.
+- `save_png` in `render_test` writes 24 bpp BGR (WIC's PNG encoder turns 32 bpp into 24 bpp).
 
 ## Performance
 
