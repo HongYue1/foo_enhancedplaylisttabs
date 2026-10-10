@@ -53,6 +53,7 @@ Columns UI is optional.
 Settings are under **Configure...** in the tab menu (in Columns UI also on the Layout page). They
 belong to each element, preview live, and **Cancel** undoes them. The dialog doesn't block
 foobar2000, so you can hover and click the tabs while you try settings.
+Hover over a setting's label to see what it does and its range.
 
 ## Keyboard and mouse
 
