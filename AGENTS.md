@@ -202,6 +202,9 @@ in dark mode (fixed in 1.2.3).
 - Pages (tab order = `page_ids` / `page_names` in `configure_dialog.cpp`): Strip, Look, Hover,
   Colours, Fonts, Titles, Animation, Playlists, Input, Visibility. Layout rules are the style
   profile at the top of the `.rc`; strengths are all 2-100 %.
+- Tooltips: the `tips` table in `configure_dialog.cpp` (control id, text); `create_tips` adds each
+  to its control, to the label before it (a static ending in a colon) and as an area of the page,
+  because a disabled control gets no mouse messages. A new setting that is not obvious gets a row.
 - The fade keeps a `hover_level` per `Item` (so it moves with reorders) and is read only while
   `hover_fading_`; otherwise `index == hover_` decides. Anything that resets `hover_` on an item
   change must call `stop_hover_fade()`.

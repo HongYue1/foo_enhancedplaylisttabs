@@ -47,6 +47,165 @@ constexpr const wchar_t* page_names[page_count] = {L"Strip",     L"Look",  L"Hov
 //! Where a hover fill slider rests while Automatic is ticked.
 [[nodiscard]] int auto_hover_fill_for(bool active) noexcept { return active ? auto_active_hover_fill : auto_hover_fill; }
 
+//! Tooltips: a control's tip also shows on its label (the static before it, ending in a colon).
+//! Ranges, what 0 or Automatic means, and anything not clear at first glance live here, so the
+//! pages keep short labels and bare units.
+struct Tip {
+    int id;
+    const wchar_t* text;
+};
+constexpr const wchar_t* tip_hex = L"The colour as hex RRGGBB. Click the swatch to pick one.";
+constexpr const wchar_t* tip_swatch = L"Pick a colour.";
+constexpr const wchar_t* tip_hover_colour = L"Text colour: a neutral wash. Accent colour: the accent from the Colours page.";
+constexpr const wchar_t* tip_hover_fill_auto = L"Automatic: 18% on the other tabs, 23% on the active tab.";
+constexpr const wchar_t* tip_hover_fill = L"How strong the hover fill is (2-100%).";
+constexpr const wchar_t* tip_hover_width_auto = L"Automatic: 2 px for an underline, thinner for an outline.";
+constexpr const wchar_t* tip_hover_width = L"Width of the outline or underline (1-8 px).";
+constexpr const wchar_t* tip_hover_line_auto = L"Automatic: 50% in the text colour, full strength in any other colour.";
+constexpr const wchar_t* tip_hover_line = L"How strong the outline or underline is (10-100%).";
+constexpr const wchar_t* tip_action =
+    L"Show now playing: the playing track if it plays from this playlist, else the focused one. "
+    L"Jump to the first / last track: the first, or the last when already on the first. "
+    L"Remove playlist: File > Restore playlist brings it back.";
+constexpr const wchar_t* tip_fallback =
+    L"Tried in this order for characters the tab font cannot draw. Only the family is used: size, weight "
+    L"and italic follow the tab font. The built-in fallbacks (emoji, then Windows') come after these.";
+constexpr const wchar_t* tip_font =
+    L"Default follows the Columns UI font for these tabs (Colours and fonts), or the Default UI tab font. "
+    L"Picked sizes are exact; tab icons keep their icon font.";
+constexpr const wchar_t* tip_ms = L"Length of the animation (50-1000 ms).";
+constexpr Tip tips[] = {
+    {IDC_DEFAULTS, L"Puts every setting on every page back to its default. Cancel still undoes it."},
+    // Strip
+    {IDC_POSITION, L"The edge of the panel the strip sits on."},
+    {IDC_THICKNESS, L"Height of a top or bottom strip, width of a side strip. 0 = from the font, or 1-200 px."},
+    {IDC_ROTATE, L"On a left or right strip, titles run along the strip. Off: titles stay level and the strip grows "
+                 L"as wide as its longest title."},
+    {IDC_SIZING, L"Fit the title: each tab as wide as its title. All equal: every tab as wide as the widest. "
+                 L"Fill the strip: the tabs share all of its length."},
+    {IDC_ALIGN, L"Where the tabs sit when they do not fill the strip."},
+    {IDC_CHEVRON, L"Where the chevron for the tabs that do not fit sits."},
+    {IDC_SHRINK, L"When the tabs do not fit, the longest titles get shorter (with an ellipsis) before tabs move to the "
+                 L"chevron. Off: titles stay whole."},
+    {IDC_MAX_WIDTH, L"Longer titles are cut with an ellipsis and shown whole in a tooltip. 0 = no limit, or 1-2000 px."},
+    {IDC_PAD_X, L"Space before and after the title (0-64 px)."},
+    {IDC_PAD_Y, L"Space above and below the title (0-64 px)."},
+    {IDC_SPACING, L"Gap between two tabs (0-64 px)."},
+    // Look
+    {IDC_CHIP, L"Every tab gets a rounded fill of its own; the active tab's stands out."},
+    {IDC_CHIP_COLOUR, L"Text colour: a neutral wash. Accent colour: the accent from the Colours page."},
+    {IDC_CHIP_HEX, tip_hex},
+    {IDC_CHIP_SWATCH, tip_swatch},
+    {IDC_CHIP_STRENGTH_AUTO, L"Automatic: 18% on a dark strip, 15% on a light one."},
+    {IDC_CHIP_STRENGTH, L"How strong the chips' fill is (2-100%)."},
+    {IDC_RADIUS, L"Rounding of chips, pills and tabs (0-32 px)."},
+    {IDC_INDICATOR, L"How the active tab is marked. Tab: a fill joined to the panel. Outlined tab: the same shape, "
+                    L"outlined. Text only: just its brighter title."},
+    {IDC_LINE_WIDTH_AUTO, L"Automatic: 2 px for the underline, thinner for the outline."},
+    {IDC_LINE_WIDTH, L"Width of the underline or the outline (1-8 px)."},
+    {IDC_STRENGTH_AUTO, L"Automatic: 50% on a dark strip, 40% on a light one."},
+    {IDC_STRENGTH, L"How strong the active tab's pill, tab or chip fill is (2-100%)."},
+    // Hover
+    {IDC_HOVER_STYLE, L"How a tab is marked while the pointer is over it."},
+    {IDC_HOVER_ACTIVE_STYLE, L"How the active tab is marked while the pointer is over it. Plain wash: a faint "
+                             L"wash in the text colour."},
+    {IDC_HOVER_COLOUR, tip_hover_colour},
+    {IDC_HOVER_ACTIVE_COLOUR, tip_hover_colour},
+    {IDC_HOVER_HEX, tip_hex},
+    {IDC_HOVER_ACTIVE_HEX, tip_hex},
+    {IDC_HOVER_SWATCH, tip_swatch},
+    {IDC_HOVER_ACTIVE_SWATCH, tip_swatch},
+    {IDC_HOVER_TEXT, L"What the title does on hover. Brightens: takes the active tab's text colour."},
+    {IDC_HOVER_ACTIVE_TEXT, L"What the active tab's title does on hover. Brightens: gets lighter, towards white."},
+    {IDC_HOVER_TEXT_HEX, L"Used with Title: Custom colour. Hex RRGGBB; click the swatch to pick one."},
+    {IDC_HOVER_ACTIVE_TEXT_HEX, L"Used with Title: Custom colour. Hex RRGGBB; click the swatch to pick one."},
+    {IDC_HOVER_TEXT_SWATCH, tip_swatch},
+    {IDC_HOVER_ACTIVE_TEXT_SWATCH, tip_swatch},
+    {IDC_HOVER_FILL_AUTO, tip_hover_fill_auto},
+    {IDC_HOVER_ACTIVE_FILL_AUTO, tip_hover_fill_auto},
+    {IDC_HOVER_FILL, tip_hover_fill},
+    {IDC_HOVER_ACTIVE_FILL, tip_hover_fill},
+    {IDC_HOVER_LINE_WIDTH_AUTO, tip_hover_width_auto},
+    {IDC_HOVER_ACTIVE_LINE_WIDTH_AUTO, tip_hover_width_auto},
+    {IDC_HOVER_LINE_WIDTH, tip_hover_width},
+    {IDC_HOVER_ACTIVE_LINE_WIDTH, tip_hover_width},
+    {IDC_HOVER_LINE_AUTO, tip_hover_line_auto},
+    {IDC_HOVER_ACTIVE_LINE_AUTO, tip_hover_line_auto},
+    {IDC_HOVER_LINE, tip_hover_line},
+    {IDC_HOVER_ACTIVE_LINE, tip_hover_line},
+    // Colours
+    {IDC_ACCENT_SOURCE, L"The colour of the active tab's mark. From the playing cover: taken from the playing "
+                        L"track's cover art."},
+    {IDC_ACCENT_HEX, tip_hex},
+    {IDC_ACCENT_SWATCH, tip_swatch},
+    {IDC_TEXT_CUSTOM, L"Your own colour for the other tabs' titles, used exactly as picked. Off: the theme's text, "
+                      L"dimmed."},
+    {IDC_TEXT_HEX, tip_hex},
+    {IDC_TEXT_SWATCH, tip_swatch},
+    {IDC_ACTIVE_TEXT_CUSTOM, L"Your own colour for the active and selected tabs' titles, used exactly as picked. "
+                             L"Off: the theme's text."},
+    {IDC_ACTIVE_TEXT_HEX, tip_hex},
+    {IDC_ACTIVE_TEXT_SWATCH, tip_swatch},
+    {IDC_BACKGROUND, L"Tinted with the accent: the theme's background with some of the accent mixed in."},
+    {IDC_BACKGROUND_HEX, tip_hex},
+    {IDC_BACKGROUND_SWATCH, tip_swatch},
+    {IDC_TINT, L"How much accent goes into a tinted background (2-100%)."},
+    {IDC_TRANSPARENT, L"The strip shows the layout's own background, such as a Columns UI theme's image; tabs keep "
+                      L"their fills. Not while auto-hide shows the strip over the panel."},
+    {IDC_TRANSPARENT_OPACITY, L"How much of the strip's own background still covers the layout's (0-100%, 0 = fully "
+                              L"transparent)."},
+    // Fonts
+    {IDC_FONT_TEXT, tip_font},
+    {IDC_FONT_PICK, tip_font},
+    {IDC_FONT_CLEAR, tip_font},
+    {IDC_FALLBACK_TEXT, tip_fallback},
+    {IDC_FALLBACK_TEXT + 1, tip_fallback},
+    {IDC_FALLBACK_TEXT + 2, tip_fallback},
+    {IDC_FALLBACK_PICK, tip_fallback},
+    {IDC_FALLBACK_PICK + 1, tip_fallback},
+    {IDC_FALLBACK_PICK + 2, tip_fallback},
+    {IDC_FALLBACK_CLEAR, tip_fallback},
+    {IDC_FALLBACK_CLEAR + 1, tip_fallback},
+    {IDC_FALLBACK_CLEAR + 2, tip_fallback},
+    // Titles
+    {IDC_TITLE_FORMAT_MODE, L"Build the titles from the fields below with foobar2000's title formatting."},
+    {IDC_TITLE_EXAMPLES, L"Pick an example to put it in the field."},
+    {IDC_TITLE_HELP, L"Opens foobar2000's title formatting help."},
+    {IDC_TITLE_PATTERN, L"Track fields such as %artist% stay empty: a tab has no track."},
+    // Animation
+    {IDC_SWITCH_ANIM, L"The active tab's mark slides over to the new tab."},
+    {IDC_SWITCH_MS, tip_ms},
+    {IDC_HOVER_FADE, L"The hover mark fades in and out."},
+    {IDC_HOVER_FADE_MS, tip_ms},
+    {IDC_AH_ANIM, L"How an auto-hiding strip appears and goes."},
+    {IDC_AH_ANIM_MS, tip_ms},
+    // Playlists
+    {IDC_DROP_NAME, L"Files dropped on empty strip space make a new playlist. After the folder: the dropped folder, or "
+                    L"the files' common folder; New Playlist (n) when there is none."},
+    {IDC_FOLLOW_PLAYING, L"When playback starts, the playlist it plays from becomes the active tab."},
+    {IDC_TRACKS_MENU, L"foobar2000's menu for the tab's tracks, in the tab's right-click menu. It takes longer to build "
+                      L"for very large playlists; as a submenu it is built only when opened."},
+    // Input
+    {IDC_CLICK_ACTIVE, L"A click on another tab always just switches to it. With a double-click action set, a click on "
+                       L"the active tab waits out the double-click time first."},
+    {IDC_DBLCLICK_TAB, tip_action},
+    {IDC_MIDDLE, tip_action},
+    {IDC_UNPIN_PINNED, L"A pin action on a tab already pinned there unpins it."},
+    {IDC_CONFIRM_REMOVE, L"Removing a playlist that has tracks asks first."},
+    {IDC_WHEEL, L"The wheel over the strip switches to the next or previous tab."},
+    {IDC_DRAG, L"Dragging a tab moves the playlist itself."},
+    {IDC_DBLCLICK_NEW, L"A double-click on empty strip space makes a new playlist and switches to it."},
+    {IDC_CTRL_TAB, L"Ctrl+Tab and Ctrl+Shift+Tab, while the keyboard focus is inside the panel."},
+    // Visibility
+    {IDC_VISIBILITY, L"Auto-hide: the strip shows when the pointer reaches its edge of the panel."},
+    {IDC_AH_MODE, L"Over the panel: the strip covers the edge of the panel. Push the panel aside: the panel makes room."},
+    {IDC_AH_HOT_ZONE, L"How close to the edge the pointer has to come (1-32 px)."},
+    {IDC_AH_REVEAL, L"Time in the hot zone before the strip shows (0-5000 ms)."},
+    {IDC_AH_HIDE, L"Time after the pointer leaves before the strip hides (0-5000 ms). It also stays while its menu is "
+                  L"open, during a drag and while it has the keyboard focus."},
+    {IDC_AH_LINGER, L"How long the strip stays at least after a tab switch (0-5000 ms)."},
+};
+
 //! A control by id on the dialog itself or on one of its pages (ids are unique across pages).
 [[nodiscard]] HWND find_control(HWND dialog, int control) {
     if (HWND direct = ::GetDlgItem(dialog, control)) return direct;
@@ -355,6 +514,8 @@ private:
     LRESULT on_notify(UINT, WPARAM, LPARAM lparam);
 
     void create_pages();
+    //! One tooltip window for the tips table, on the controls and their labels.
+    void create_tips();
     //! Pages keep nothing themselves: commands, owner-draw and scroll messages go to the dialog.
     static INT_PTR CALLBACK page_proc(HWND, UINT, WPARAM, LPARAM);
     void show_page(int page);
@@ -431,6 +592,7 @@ private:
     void hover_values(const HoverSet& set);
     void hover_enabled(const HoverSet& set);
     HWND pages_[page_count]{};
+    HWND tips_{};
     // Must be a member: it hooks the dialog and its controls for the lifetime of both.
     fb2k::CDarkModeHooks dark_;
 };
@@ -438,6 +600,7 @@ private:
 BOOL ConfigureDialog::on_init_dialog(CWindow, LPARAM) {
     dark_.AddDialogWithControls(*this);
     create_pages();
+    create_tips();
     {
         const HWND tabs = ::GetDlgItem(m_hWnd, IDC_TABS);
         for (int i = 0; i < page_count; ++i) {
@@ -523,6 +686,51 @@ void ConfigureDialog::create_pages() {
                        host.bottom - host.top, SWP_NOACTIVATE);
         dark_.AddDialogWithControls(page);
         pad_text_fields(page);
+    }
+}
+
+void ConfigureDialog::create_tips() {
+    tips_ = ::CreateWindowExW(WS_EX_TOPMOST, TOOLTIPS_CLASSW, nullptr, WS_POPUP | TTS_NOPREFIX | TTS_ALWAYSTIP,
+                              CW_USEDEFAULT, CW_USEDEFAULT, CW_USEDEFAULT, CW_USEDEFAULT, m_hWnd, nullptr,
+                              core_api::get_my_instance(), nullptr);
+    if (tips_ == nullptr) return;
+    RECT wrap{0, 0, 200, 0};
+    ::MapDialogRect(m_hWnd, &wrap);
+    ::SendMessageW(tips_, TTM_SETMAXTIPWIDTH, 0, wrap.right);
+    ::SendMessageW(tips_, TTM_SETDELAYTIME, TTDT_AUTOPOP, 30000);
+    DarkMode::ApplyDarkThemeCtrl(tips_, DarkMode::IsDialogDark(m_hWnd));
+    UINT_PTR area = 1;
+    // A disabled control gets no mouse messages and a label lets them through: its page gets them,
+    // so both are also areas of the page.
+    const auto add_area = [&](HWND page, HWND w, const wchar_t* text) {
+        TTTOOLINFOW info{};
+        info.cbSize = sizeof(info);
+        info.uFlags = TTF_SUBCLASS;
+        info.hwnd = page;
+        info.uId = area++;
+        ::GetWindowRect(w, &info.rect);
+        ::MapWindowPoints(HWND_DESKTOP, page, reinterpret_cast<POINT*>(&info.rect), 2);
+        info.lpszText = const_cast<wchar_t*>(text);
+        ::SendMessageW(tips_, TTM_ADDTOOLW, 0, reinterpret_cast<LPARAM>(&info));
+    };
+    for (const Tip& tip : tips) {
+        const HWND w = control(tip.id);
+        if (w == nullptr) continue;
+        const HWND page = ::GetParent(w);
+        TTTOOLINFOW info{};
+        info.cbSize = sizeof(info);
+        info.uFlags = TTF_IDISHWND | TTF_SUBCLASS;
+        info.hwnd = page;
+        info.uId = reinterpret_cast<UINT_PTR>(w);
+        info.lpszText = const_cast<wchar_t*>(tip.text);
+        ::SendMessageW(tips_, TTM_ADDTOOLW, 0, reinterpret_cast<LPARAM>(&info));
+        add_area(page, w, tip.text);
+        const HWND label = ::GetWindow(w, GW_HWNDPREV);
+        wchar_t name[16]{};
+        wchar_t text[64]{};
+        if (label == nullptr || ::GetClassNameW(label, name, 16) == 0 || std::wcscmp(name, L"Static") != 0) continue;
+        const int length = ::GetWindowTextW(label, text, 64);
+        if (length > 0 && text[length - 1] == L':') add_area(page, label, tip.text);
     }
 }
 
