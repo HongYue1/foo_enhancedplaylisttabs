@@ -2700,6 +2700,14 @@ bool SwitcherCore::run_configure(HWND parent) {
     original.ui_name = host_ui_name();
     original.highlight_name = host_highlight_name();
     try {
+        // As refresh_colours decides it: a custom background has its own lightness.
+        original.dark = settings_.strip_background == StripBackground::custom
+                            ? colour::lightness(settings_.background_argb & 0xFFFFFFu) <
+                                  colour::light_background_lightness
+                            : host_colours().dark;
+    } catch (...) {
+    }
+    try {
         StripFont font;
         StripTextOptions options;
         host_font(font, options);

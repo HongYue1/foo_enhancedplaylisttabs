@@ -172,8 +172,8 @@ constexpr float hover_alpha_dark = 0.08f;
 constexpr float hover_alpha_light = 0.06f;
 constexpr float chip_alpha = 0.05f;
 constexpr float chip_active_alpha = 0.18f;
-constexpr float pill_alpha_dark = 0.30f;
-constexpr float pill_alpha_light = 0.26f;
+constexpr float pill_alpha_dark = static_cast<float>(auto_fill_dark) / 100.0f;
+constexpr float pill_alpha_light = static_cast<float>(auto_fill_light) / 100.0f;
 //! An outlined tab: a faint wash inside a solid accent outline.
 constexpr float outline_fill_alpha = 0.05f;
 //! Tabs in the multiple selection: an accent wash, below the active tab's.

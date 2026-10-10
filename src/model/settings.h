@@ -80,6 +80,11 @@ struct TabFont {
     [[nodiscard]] bool operator==(const TabFont&) const = default;
 };
 
+//! Settings::accent_strength 0 (automatic): the pill and tab fill in percent on a dark and on a
+//! light strip. The Look page's slider rests there while Automatic is ticked.
+inline constexpr std::uint8_t auto_fill_dark = 50;
+inline constexpr std::uint8_t auto_fill_light = 40;
+
 struct Settings {
     StripPosition position{StripPosition::top};
     //! Rotated since 0.3.1: horizontal text makes a side strip as wide as its longest title.

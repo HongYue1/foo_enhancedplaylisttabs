@@ -190,6 +190,11 @@ erase the page behind the control first (`repaint_behind`). A plain `SetWindowTe
   text dimmed), `custom_active_text` / `active_text_argb` for the active tab and, when set, the
   selected tabs. Picked colours (these and the custom hover title) skip the strong-fill contrast
   rescue in `draw_tab` (`chosen`): the user asked for that colour.
+- Automatic fill strength (`accent_strength` 0) for a pill or tab is `auto_fill_dark` /
+  `auto_fill_light` (`settings.h`, 50 and 40 %; was 30 and 26). Both are at or above
+  `strong_fill`, so the active title is checked for contrast against the fill. The Look page's
+  slider rests on the matching value (`ConfigureState::dark`). Tests that need the title as drawn
+  set `accent_strength` below 40 (the render tests pass it to `StripTheme::active_fill`).
 - The Hover page edits one set at a time ("Settings for:"): switching it reloads the shared
   controls without reading them first (`hover_to_controls`), title combo and title colour
   included (`HoverFields::text`, `text_argb`). The fade is shared by both sets, so it is the

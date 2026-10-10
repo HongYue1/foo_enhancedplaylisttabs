@@ -551,6 +551,7 @@ int hover_test(HWND parent) {
         theme.background = colour::colorref_from_rgb(bg);
         theme.text = text;
         theme.dark = true;
+        theme.active_fill = static_cast<float>(s.accent_strength) / 100.0f; // as refresh_colours
         theme.accent = colour::colorref_from_rgb(colour::accent_for_background(cover_raw, bg));
         strip.set_theme(theme);
         StripFont font;
@@ -708,12 +709,16 @@ int hover_test(HWND parent) {
             }
         return sum;
     };
-    Settings lighten = active_none;
+    // A fill below strong_fill: on a stronger one the title is chosen for contrast (white or
+    // black), lighter or not.
+    Settings soft = active_none;
+    soft.accent_strength = 30;
+    Settings lighten = soft;
     lighten.active_hover_text = HoverText::brighten;
     const Shot lit = shoot(lighten, 0, 0, grey);
-    const Shot unlit = shoot(active_none, 0, 0, grey);
+    const Shot unlit = shoot(soft, 0, 0, grey);
     check(title_light(lit) > title_light(unlit), "active tab, lighten: a grey title gets lighter");
-    check(shoot(lighten, 0).px == none.px, "active tab, lighten: white stays white");
+    check(shoot(lighten, 0).px == shoot(soft, 0).px, "active tab, lighten: white stays white");
 
     // Fade: right after the hover nothing shows yet; after the fade the full mark does.
     Settings fade = fill;

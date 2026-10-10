@@ -529,7 +529,8 @@ void ConfigureDialog::settings_to_controls() {
     check(IDC_CHIP, s.chip);
     set_number(IDC_RADIUS, s.corner_radius);
     check(IDC_STRENGTH_AUTO, s.accent_strength == 0);
-    set_slider(IDC_STRENGTH, 5, 100, s.accent_strength == 0 ? 35 : s.accent_strength);
+    set_slider(IDC_STRENGTH, 5, 100,
+               s.accent_strength != 0 ? s.accent_strength : (state_.dark ? auto_fill_dark : auto_fill_light));
     select(IDC_ACCENT_SOURCE, static_cast<int>(s.accent_source));
     ::SetWindowTextW(control(IDC_ACCENT_HEX), format_rgb(s.accent_argb).c_str());
     select(IDC_BACKGROUND, static_cast<int>(s.strip_background));
