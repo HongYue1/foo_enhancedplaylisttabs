@@ -92,6 +92,10 @@ inline constexpr std::uint8_t auto_fill_light = 40;
 //! strip. The Look page's slider rests there while Automatic is ticked.
 inline constexpr std::uint8_t auto_chip_dark = 18;
 inline constexpr std::uint8_t auto_chip_light = 15;
+//! Settings::hover_fill_strength and active_hover_fill_strength 0 (automatic): the hover fill
+//! in percent on the other tabs and on the active tab. The Hover page's sliders rest there.
+inline constexpr std::uint8_t auto_hover_fill = 18;
+inline constexpr std::uint8_t auto_active_hover_fill = 23;
 
 struct Settings {
     StripPosition position{StripPosition::top};

@@ -44,6 +44,8 @@ constexpr const wchar_t* page_names[page_count] = {L"Strip",     L"Look",  L"Hov
                                                    L"Input",     L"Visibility"};
 //! Where an automatic line width's edit rests (the width it draws at 96 DPI).
 [[nodiscard]] int auto_line_width(bool outline) noexcept { return outline ? 1 : 2; }
+//! Where a hover fill slider rests while Automatic is ticked.
+[[nodiscard]] int auto_hover_fill_for(bool active) noexcept { return active ? auto_active_hover_fill : auto_hover_fill; }
 
 //! A control by id on the dialog itself or on one of its pages (ids are unique across pages).
 [[nodiscard]] HWND find_control(HWND dialog, int control) {
@@ -665,7 +667,7 @@ void ConfigureDialog::hover_to_controls(const HoverSet& set) {
     select(id.colour, static_cast<int>(s.*h.colour));
     ::SetWindowTextW(control(id.hex), format_rgb(s.*h.argb).c_str());
     check(id.fill_auto, s.*h.fill_strength == 0);
-    set_slider(id.fill, 2, 100, s.*h.fill_strength == 0 ? 10 : s.*h.fill_strength);
+    set_slider(id.fill, 2, 100, s.*h.fill_strength == 0 ? auto_hover_fill_for(set.active) : s.*h.fill_strength);
     check(id.line_width_auto, s.*h.line_width == 0);
     set_number(id.line_width, s.*h.line_width != 0 ? s.*h.line_width : auto_line_width(hover_outline(s.*h.style)));
     check(id.line_auto, s.*h.line_opacity == 0);
@@ -1031,8 +1033,8 @@ void ConfigureDialog::on_command(UINT code, int id, CWindow) {
         case IDC_CHIP_STRENGTH_AUTO:
             bar = IDC_CHIP_STRENGTH, rest = state_.dark ? auto_chip_dark : auto_chip_light;
             break;
-        case IDC_HOVER_FILL_AUTO: bar = IDC_HOVER_FILL, rest = 10; break;
-        case IDC_HOVER_ACTIVE_FILL_AUTO: bar = IDC_HOVER_ACTIVE_FILL, rest = 10; break;
+        case IDC_HOVER_FILL_AUTO: bar = IDC_HOVER_FILL, rest = auto_hover_fill; break;
+        case IDC_HOVER_ACTIVE_FILL_AUTO: bar = IDC_HOVER_ACTIVE_FILL, rest = auto_active_hover_fill; break;
         case IDC_HOVER_LINE_AUTO: bar = IDC_HOVER_LINE, rest = 50; break;
         case IDC_HOVER_ACTIVE_LINE_AUTO: bar = IDC_HOVER_ACTIVE_LINE, rest = 50; break;
         case IDC_LINE_WIDTH_AUTO: width = IDC_LINE_WIDTH, rest = auto_line_width(false); break;

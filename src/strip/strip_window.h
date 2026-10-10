@@ -390,6 +390,7 @@ private:
         std::uint8_t fill_strength{0};
         std::uint8_t line_width{0};
         std::uint8_t line_opacity{0};
+        bool active{false};
     };
     [[nodiscard]] HoverMark hover_mark(bool active) const noexcept;
     [[nodiscard]] COLORREF hover_colour(const HoverMark& mark) const noexcept;

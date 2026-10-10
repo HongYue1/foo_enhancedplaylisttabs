@@ -185,9 +185,6 @@ constexpr float selected_alpha_light = 0.14f;
 //! From this fill opacity on, the active tab's text is chosen for contrast against the fill.
 constexpr float strong_fill = 0.40f;
 constexpr float inactive_text = 0.70f;
-//! The automatic hover fill in the accent or a custom colour (Settings::hover_colour).
-constexpr float hover_colour_alpha_dark = 0.14f;
-constexpr float hover_colour_alpha_light = 0.12f;
 //! The automatic hover outline or underline in the text colour.
 constexpr float hover_line_text_alpha = 0.50f;
 
@@ -739,7 +736,7 @@ StripWindow::HoverMark StripWindow::hover_mark(bool active) const noexcept {
     if (active) {
         return {settings_.active_hover_style,         settings_.active_hover_colour,
                 settings_.active_hover_argb,          settings_.active_hover_fill_strength,
-                settings_.active_hover_line_width,    settings_.active_hover_line_opacity};
+                settings_.active_hover_line_width,    settings_.active_hover_line_opacity, true};
     }
     return {settings_.hover_style,         settings_.hover_colour,      settings_.hover_argb,
             settings_.hover_fill_strength, settings_.hover_line_width, settings_.hover_line_opacity};
@@ -759,9 +756,8 @@ COLORREF StripWindow::hover_colour(const HoverMark& mark) const noexcept {
 
 float StripWindow::hover_fill_alpha(const HoverMark& mark) const noexcept {
     if (mark.fill_strength != 0) return static_cast<float>(mark.fill_strength) / 100.0f;
-    // Automatic: the plain wash in the text colour; a colour gets a little more to show its hue.
-    if (mark.colour == HoverColour::text) return theme_.dark ? hover_alpha_dark : hover_alpha_light;
-    return theme_.dark ? hover_colour_alpha_dark : hover_colour_alpha_light;
+    // Automatic: a little more on the active tab so it still shows over its own fill.
+    return static_cast<float>(mark.active ? auto_active_hover_fill : auto_hover_fill) / 100.0f;
 }
 
 float StripWindow::hover_line_alpha(const HoverMark& mark) const noexcept {
