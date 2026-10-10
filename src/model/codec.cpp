@@ -24,6 +24,7 @@ void clamp(Settings& s) noexcept {
     limit(s.linger_ms, 0, 5000);
     if (s.accent_strength != 0) s.accent_strength = std::clamp<std::uint8_t>(s.accent_strength, 5, 100);
     s.tint_strength = std::clamp<std::uint8_t>(s.tint_strength, 2, 60);
+    s.transparent_opacity = (std::min)(s.transparent_opacity, std::uint8_t{100});
     s.line_width = (std::min)(s.line_width, std::uint8_t{8});
     if (s.hover_fill_strength != 0) s.hover_fill_strength = std::clamp<std::uint8_t>(s.hover_fill_strength, 2, 80);
     s.hover_line_width = (std::min)(s.hover_line_width, std::uint8_t{8});
@@ -260,6 +261,14 @@ enum SettingId : std::uint16_t {
     s_middle_action = 77,
     s_unpin_pinned = 78,
     s_tracks_menu = 79,
+    s_active_hover_text = 80,
+    s_hover_text_argb = 81,
+    s_active_hover_text_argb = 82,
+    s_custom_text = 83,
+    s_text_argb = 84,
+    s_custom_active_text = 85,
+    s_active_text_argb = 86,
+    s_transparent_opacity = 87,
 };
 
 //! Settings::middle_action as the value builds up to 1.4 read (0 for an action they lack).
@@ -341,13 +350,22 @@ void write_settings(Writer& w, const Settings& s) {
     field_u8(w, s_active_hover_fill_strength, s.active_hover_fill_strength);
     field_u8(w, s_active_hover_line_width, s.active_hover_line_width);
     field_u8(w, s_active_hover_line_opacity, s.active_hover_line_opacity);
-    field_u8(w, s_active_hover_lighten, s.active_hover_lighten ? 1 : 0);
+    // What builds up to 1.6 read; s_active_hover_text comes later and wins.
+    field_u8(w, s_active_hover_lighten, s.active_hover_text == HoverText::brighten ? 1 : 0);
     // After the legacy s_middle_click / s_dblclick_tab, so these win when both are read.
     field_u8(w, s_click_active_action, static_cast<std::uint8_t>(s.click_active_action));
     field_u8(w, s_dblclick_action, static_cast<std::uint8_t>(s.dblclick_action));
     field_u8(w, s_middle_action, static_cast<std::uint8_t>(s.middle_action));
     field_u8(w, s_unpin_pinned, s.unpin_pinned ? 1 : 0);
     field_u8(w, s_tracks_menu, static_cast<std::uint8_t>(s.tracks_menu));
+    field_u8(w, s_active_hover_text, static_cast<std::uint8_t>(s.active_hover_text));
+    field_u32(w, s_hover_text_argb, s.hover_text_argb);
+    field_u32(w, s_active_hover_text_argb, s.active_hover_text_argb);
+    field_u8(w, s_custom_text, s.custom_text ? 1 : 0);
+    field_u32(w, s_text_argb, s.text_argb);
+    field_u8(w, s_custom_active_text, s.custom_active_text ? 1 : 0);
+    field_u32(w, s_active_text_argb, s.active_text_argb);
+    field_u8(w, s_transparent_opacity, s.transparent_opacity);
 }
 
 //! Returns false for an id this build does not know.
@@ -426,7 +444,7 @@ bool read_setting(Settings& s, std::uint16_t id, std::span<const std::uint8_t> v
     case s_hover_fill_strength: read_u8(v, s.hover_fill_strength); return true;
     case s_hover_line_width: read_u8(v, s.hover_line_width); return true;
     case s_hover_line_opacity: read_u8(v, s.hover_line_opacity); return true;
-    case s_hover_text: read_enum(v, s.hover_text, HoverText::colour); return true;
+    case s_hover_text: read_enum(v, s.hover_text, HoverText::custom); return true;
     case s_hover_fade: read_bool(v, s.hover_fade); return true;
     case s_hover_fade_ms: read_u16(v, s.hover_fade_ms); return true;
     case s_transparent_background: read_bool(v, s.transparent_background); return true;
@@ -436,12 +454,25 @@ bool read_setting(Settings& s, std::uint16_t id, std::span<const std::uint8_t> v
     case s_active_hover_fill_strength: read_u8(v, s.active_hover_fill_strength); return true;
     case s_active_hover_line_width: read_u8(v, s.active_hover_line_width); return true;
     case s_active_hover_line_opacity: read_u8(v, s.active_hover_line_opacity); return true;
-    case s_active_hover_lighten: read_bool(v, s.active_hover_lighten); return true;
+    case s_active_hover_lighten: {
+        bool lighten = false;
+        read_bool(v, lighten);
+        s.active_hover_text = lighten ? HoverText::brighten : HoverText::unchanged;
+        return true;
+    }
     case s_click_active_action: read_enum(v, s.click_active_action, TabAction::toggle_lock); return true;
     case s_dblclick_action: read_enum(v, s.dblclick_action, TabAction::toggle_lock); return true;
     case s_middle_action: read_enum(v, s.middle_action, TabAction::toggle_lock); return true;
     case s_unpin_pinned: read_bool(v, s.unpin_pinned); return true;
     case s_tracks_menu: read_enum(v, s.tracks_menu, TracksMenu::on_demand); return true;
+    case s_active_hover_text: read_enum(v, s.active_hover_text, HoverText::custom); return true;
+    case s_hover_text_argb: read_u32(v, s.hover_text_argb); return true;
+    case s_active_hover_text_argb: read_u32(v, s.active_hover_text_argb); return true;
+    case s_custom_text: read_bool(v, s.custom_text); return true;
+    case s_text_argb: read_u32(v, s.text_argb); return true;
+    case s_custom_active_text: read_bool(v, s.custom_active_text); return true;
+    case s_active_text_argb: read_u32(v, s.active_text_argb); return true;
+    case s_transparent_opacity: read_u8(v, s.transparent_opacity); return true;
     default: return false;
     }
 }

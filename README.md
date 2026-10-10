@@ -17,8 +17,8 @@
   stays in view. Titles can shrink to fit first.
 - **Strip on any side**, with rotated titles on the left and right if you like.
 - **Your look**: underline, pill, tab, outlined tab or text-only indicator, chips, corner radius,
-  tab width and alignment, spacing, hover styles (the active tab has its own), a tab font with
-  fallbacks, and transparency.
+  tab width and alignment, spacing, hover styles (the active tab has its own), text colours, a tab
+  font with fallbacks, and transparency with an adjustable background opacity.
 - **Accent colour** from the UI, a custom colour or the playing track's cover, and a strip
   background that can be tinted with it. Colours, fonts and dark mode follow your Default UI or
   Columns UI settings.
@@ -67,7 +67,7 @@ belong to each element, preview live, and **Cancel** undoes them.
 | Drop files on a tab / on empty space | Add them to that playlist / new playlist named after the folder |
 | Hold a drag over a tab | Switch to it |
 | Right-click a tab | Tab menu; on a selected tab, commands for all selected playlists |
-| Right-click empty space | New playlist, Load playlist, Sort, Show hidden tab, Appearance, Configure |
+| Right-click empty space | New playlist, Load playlist, Sort, Lock / Unlock all playlists, Show hidden tab, Appearance, Configure |
 
 Click actions to pick from: show now playing, jump to the first or last track, rename, duplicate,
 pin left or right (again to unpin), hide the tab, remove the playlist, lock or unlock.
@@ -80,7 +80,9 @@ pin left or right (again to unpin), hide the tab, remove the playlist, lock or u
 - **Pinned tabs** only reorder among themselves. **Appearance > Pin icon on pinned tabs** hides
   the pin.
 - **Lock playlist** stops tracks from being added, removed or reordered and the playlist from being
-  renamed or removed. Locks and hidden tabs are kept with the playlist across restarts.
+  renamed or removed (so a click on a column header can't sort it). **Lock all playlists** and
+  **Unlock all playlists** in the tab menu do every playlist at once; new playlists start unlocked. Locks and hidden
+  tabs are kept with the playlist across restarts.
 - **Remove** asks first when the playlist has tracks (you can turn that off). **File > Restore**
   brings a removed playlist back.
 - **Hidden tabs** come back from **Show hidden tab** in the menu.
@@ -92,8 +94,13 @@ pin left or right (again to unpin), hide the tab, remove the playlist, lock or u
 - **Tracks menu**: on the Behaviour page, add foobar2000's track menu to the tab menu as an
   **Items** submenu or an **Items...** entry. With several tabs selected it covers all of them.
 - **Transparency** only shows something when your layout draws a background behind the strip,
-  such as a Columns UI theme. The auto-hide strip shown over the playlist stays solid.
-- **Lighten the text colour** for the hovered active tab does nothing to white text.
+  such as a Columns UI theme. The auto-hide strip shown over the playlist stays solid. If the
+  container changes its background (a new cover, say), it has to repaint the panels inside it;
+  the strip picks up the new background on that repaint.
+- **Text colours**: the Colours page sets the titles of the other tabs and of the active (and
+  selected) tabs; the Hover page sets a hovered tab's title, separately for the active tab.
+  Colours you pick are used as they are. "Brightens" on the active tab lightens towards white,
+  which does nothing to white text.
 - **Columns UI**: colours and fonts are also on the **Colours and fonts** page, under
   *Enhanced Playlist Tabs*. FCL export and import keep the settings and the hosted panel.
 - **Performance log**: **Preferences > Advanced > Display > Enhanced Playlist Tabs: log

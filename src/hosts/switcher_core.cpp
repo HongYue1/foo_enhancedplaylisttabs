@@ -20,6 +20,7 @@
 
 #include "../model/colour.h"
 #include "../model/file_name.h"
+#include "../model/font_size.h"
 #include "../model/playlist_sort.h"
 #include "../model/title_fields.h"
 #include "../platform/graphics.h"
@@ -71,6 +72,8 @@ enum TabCommand : unsigned {
     cmd_sort_articles,
     cmd_clear_selection,
     cmd_items_on_demand,
+    cmd_lock_all,
+    cmd_unlock_all,
 };
 constexpr unsigned menu_unhide_base = 3100;
 //! The Appearance submenu.
@@ -1948,6 +1951,23 @@ void SwitcherCore::show_tab_menu(std::size_t strip_index, POINT screen, bool ful
             if (p < playlists::entries().size()) target_keys.push_back(playlists::entries()[p].key);
         }
         bool all_locked = false;
+        // "Lock all playlists" / "Unlock all playlists": each greyed when there is nothing to do.
+        // Playlists another component locked are not counted.
+        const auto append_lock_all = [&] {
+            auto pm = playlist_manager::get();
+            const std::size_t n = playlists::entries().size();
+            bool any_unlocked = false;
+            bool any_locked = false;
+            for (std::size_t p = 0; p < n && !(any_locked && any_unlocked); ++p) {
+                if (playlists::has_user_lock(p)) {
+                    any_locked = true;
+                } else if (!pm->playlist_lock_is_present(p)) {
+                    any_unlocked = true;
+                }
+            }
+            AppendMenuW(menu, MF_STRING | (any_unlocked ? 0 : MF_GRAYED), cmd_lock_all, L"Lock all playlists");
+            AppendMenuW(menu, MF_STRING | (any_locked ? 0 : MF_GRAYED), cmd_unlock_all, L"Unlock all playlists");
+        };
         const bool side = settings_.position == StripPosition::left || settings_.position == StripPosition::right;
         if (!full) {
             // Chevron: the playlist list only (long lists in groups, append_long_list).
@@ -2050,6 +2070,7 @@ void SwitcherCore::show_tab_menu(std::size_t strip_index, POINT screen, bool ful
                 } else {
                     AppendMenuW(menu, MF_STRING | (our_lock ? MF_CHECKED : 0), cmd_lock, L"Lock playlist");
                 }
+                append_lock_all();
                 AppendMenuW(menu, MF_SEPARATOR, 0, nullptr);
                 AppendMenuW(menu, MF_STRING | (snapshot.size() < 2 ? MF_GRAYED : 0), cmd_hide, L"Hide tab");
                 AppendMenuW(menu, MF_STRING | first, cmd_move_back, side ? L"Move up" : L"Move left");
@@ -2059,6 +2080,10 @@ void SwitcherCore::show_tab_menu(std::size_t strip_index, POINT screen, bool ful
             }
             if (clicked == SIZE_MAX) sort_menu();
             if (clicked == SIZE_MAX) AppendMenuW(menu, MF_STRING, cmd_load, L"Load playlist...");
+            if (clicked == SIZE_MAX) {
+                AppendMenuW(menu, MF_SEPARATOR, 0, nullptr);
+                append_lock_all();
+            }
             if (clicked == SIZE_MAX && perf::enabled()) {
                 // Only with the performance log on: a quick way to measure with many playlists.
                 AppendMenuW(menu, MF_SEPARATOR, 0, nullptr);
@@ -2224,6 +2249,22 @@ void SwitcherCore::show_tab_menu(std::size_t strip_index, POINT screen, bool ful
             case cmd_lock_ui:
                 if (valid) playlist_manager::get()->playlist_lock_show_ui(clicked);
                 break;
+            case cmd_lock_all:
+            case cmd_unlock_all: {
+                // Playlists another component locked are left alone.
+                const bool lock = cmd == cmd_lock_all;
+                auto pm = playlist_manager::get();
+                bool refused = false;
+                const std::size_t n = playlists::entries().size();
+                for (std::size_t p = 0; p < n; ++p) {
+                    const bool ours = playlists::has_user_lock(p);
+                    if (ours == lock) continue;
+                    if (!ours && pm->playlist_lock_is_present(p)) continue;
+                    if (!playlists::set_user_lock(p, lock)) refused = true;
+                }
+                if (refused) MessageBeep(MB_ICONWARNING);
+                break;
+            }
             case cmd_hide:
                 if (valid) set_playlist_hidden(clicked, true);
                 break;
@@ -2663,10 +2704,11 @@ bool SwitcherCore::run_configure(HWND parent) {
         StripTextOptions options;
         host_font(font, options);
         original.host_font_family = !font.family.empty() ? font.family : std::wstring(font.font.lfFaceName);
-        const float pt = font.size_dip > 0.0f ? font.size_dip * 72.0f / 96.0f
-                                              : std::fabs(static_cast<float>(font.font.lfHeight)) * 72.0f /
-                                                    static_cast<float>(font.font_dpi != 0 ? font.font_dpi : 96);
-        original.host_font_tenths = static_cast<std::uint32_t>(std::lround(pt * 10.0f));
+        // A GDI font keeps whole pixels: read back the size it was most likely picked at (8 pt,
+        // not the 8.3 that 11 px at 96 DPI works out to).
+        original.host_font_tenths =
+            font.size_dip > 0.0f ? static_cast<std::uint32_t>(std::lround(font.size_dip * 72.0f / 96.0f * 10.0f))
+                                 : tenths_from_pixels(std::fabs(static_cast<float>(font.font.lfHeight)), font.font_dpi);
     } catch (...) {
     }
     ConfigureState state = original;

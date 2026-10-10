@@ -94,6 +94,13 @@ verified at run time here.
 
 ### Menus and dialogs
 
+- "Lock all playlists" / "Unlock all playlists" (tab menu and empty-space menu, `cmd_lock_all`,
+  `cmd_unlock_all`): two entries, each greyed when there is nothing to do. One toggle (checked
+  only when all were locked) could not unlock a set with one unlocked playlist (user report).
+  Playlists with another component's lock are skipped. New playlists are not locked.
+- The Fonts page's Default shows the host size read back from whole pixels with
+  `tenths_from_pixels` (`src/model/font_size.h`): 11 px at 96 DPI is 8 pt, not 8.3.
+
 - Dark popup menus cannot draw `MF_MENUBARBREAK` columns (they turn light). Long lists use
   `append_long_list` (submenus of 25).
 - `MessageBox` cannot be dark: use `run_confirm_dialog` (CDarkModeHooks).
@@ -122,6 +129,19 @@ Static text is drawn on a transparent background in dark mode. Change a label's 
 state only through `set_label` / `enable` in `configure_dialog.cpp`: they skip no-op changes and
 erase the page behind the control first (`repaint_behind`). A plain `SetWindowText` or
 `EnableWindow` piles the new text on the old, which looks bold and fringed (fixed in 1.2.3).
+
+### Transparent background
+
+- The backdrop cache is refetched on `WM_ERASEBKGND`, moves, size and theme-background changes,
+  and on any `WM_PAINT` whose rectangle is not inside what the strip invalidated itself
+  (`StripWindow::invalidate` keeps `own_dirty_`; never call `InvalidateRect(wnd_, ...)` directly
+  in the strip). So a host that repaints its background and invalidates its children without
+  `RDW_ERASE` is picked up (forum video: Panel Stack Splitter showed the old cover's background
+  until a hover). If a host never invalidates its children, the strip cannot know.
+- `transparent_opacity` (Colours page, 0 = fully transparent): the strip's background at that
+  alpha over the backdrop, one `FillRectangle` of the dirty rect in `render`.
+- `render_test` `transparent_test` covers the reuse, the refetch without an erase (real
+  `WM_PAINT`s: the parent is shown layered at alpha 1), the opacity and the text colours.
 
 ### Size limits (no child panel)
 
@@ -160,11 +180,21 @@ erase the page behind the control first (`repaint_behind`). A plain `SetWindowTe
   wash folded into the tab's own fill, so it shows nothing on a pill or tab indicator; `clamp`
   turns it into `fill` for the others. `StripWindow::draw_tab` draws the mark (fill, outline via
   `fill_shape`, which also strokes pills now, or underline) over the tab's own fill (chip,
-  selection, the active fill). `active_hover_lighten` mixes the title towards white in OKLab
-  before the contrast checks. The fade is shared.
+  selection, the active fill). The fade is shared.
+- The title of a hovered tab: `hover_text` / `active_hover_text` (`HoverText`: brighten,
+  unchanged, the hover colour, a custom colour in `*_hover_text_argb`). Brighten is "to the full
+  text colour" for the others and "lighter in OKLab, towards white" for the active tab. Up to 1.6
+  the active tab had a bool (`s_active_hover_lighten`); the codec still writes it (brighten = 1)
+  before `s_active_hover_text`, which wins.
+- Text colours (Colours page): `custom_text` / `text_argb` for the other tabs (else the theme's
+  text dimmed), `custom_active_text` / `active_text_argb` for the active tab and, when set, the
+  selected tabs. Picked colours (these and the custom hover title) skip the strong-fill contrast
+  rescue in `draw_tab` (`chosen`): the user asked for that colour.
 - The Hover page edits one set at a time ("Settings for:"): switching it reloads the shared
-  controls without reading them first (`hover_to_controls`); the title row swaps the others'
-  combo for the active tab's Lighten box (`NOT WS_VISIBLE`, dialog_check skips hidden controls).
+  controls without reading them first (`hover_to_controls`), title combo and title colour
+  included (`HoverFields::text`, `text_argb`). The fade is shared by both sets, so it is the
+  first row, above "Settings for:" (there was no room for its own section after the title
+  colour row).
 - The fade keeps a `hover_level` per `Item` (so it moves with reorders) and is read only while
   `hover_fading_`; otherwise `index == hover_` decides. Anything that resets `hover_` on an item
   change must call `stop_hover_fade()`.

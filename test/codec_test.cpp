@@ -5,6 +5,7 @@
 
 #include "../src/model/codec.h"
 #include "../src/model/file_name.h"
+#include "../src/model/font_size.h"
 
 using namespace ept;
 
@@ -93,7 +94,14 @@ Settings odd_settings() {
     s.active_hover_fill_strength = 30;
     s.active_hover_line_width = 2;
     s.active_hover_line_opacity = 60;
-    s.active_hover_lighten = true;
+    s.active_hover_text = HoverText::custom;
+    s.active_hover_text_argb = 0xFFFFD700u;
+    s.hover_text_argb = 0xFF123456u;
+    s.custom_text = true;
+    s.text_argb = 0xFF806000u;
+    s.custom_active_text = true;
+    s.active_text_argb = 0xFFFFD700u;
+    s.transparent_opacity = 35;
     return s;
 }
 
@@ -109,6 +117,16 @@ InstanceData sample() {
 } // namespace
 
 int main() {
+    {
+        // GDI keeps whole pixels: 8 pt is 11 px at 96 DPI (8.25 pt read back), 16 px at 144.
+        check(tenths_from_pixels(11.0f, 96) == 80, "11 px at 96 DPI is 8 pt");
+        check(tenths_from_pixels(16.0f, 144) == 80, "16 px at 144 DPI is 8 pt");
+        check(tenths_from_pixels(13.0f, 120) == 80, "13 px at 120 DPI is 8 pt");
+        check(tenths_from_pixels(12.0f, 96) == 90, "12 px at 96 DPI is 9 pt");
+        check(tenths_from_pixels(14.0f, 120) == 85, "14 px at 120 DPI is 8.5 pt");
+        check(tenths_from_pixels(15.0f, 96) == 110 || tenths_from_pixels(15.0f, 96) == 115, "15 px at 96 DPI");
+        check(tenths_from_pixels(0.0f, 96) == 0, "no height");
+    }
     {
         using ept::safe_file_name;
         check(safe_file_name(L"Rock: 80s / 90s?") == L"Rock_ 80s _ 90s_", "forbidden characters");
@@ -129,6 +147,12 @@ int main() {
         const InstanceData d = sample();
         const InstanceData back = decode_instance(encode_instance(d));
         check(back.settings == d.settings, "every setting round-trips");
+        Settings lighten = d.settings;
+        lighten.active_hover_text = HoverText::brighten;
+        InstanceData dl = d;
+        dl.settings = lighten;
+        check(decode_instance(encode_instance(dl)).settings.active_hover_text == HoverText::brighten,
+              "active tab lighten (1.6 bool) round-trips");
         check(back.has_child && same_guid(back.child.guid, guid_a), "child GUID");
         check(back.child.config == d.child.config, "child config");
         InstanceData empty_config = d;

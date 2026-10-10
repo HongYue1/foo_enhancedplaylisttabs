@@ -7,7 +7,6 @@
 #include <array>
 #include <cstdint>
 #include <string>
-#include <string>
 
 namespace ept {
 
@@ -61,9 +60,11 @@ enum class ShowHideAnimation : std::uint8_t { none, slide, fade };
 enum class HoverStyle : std::uint8_t { fill, outline, outline_fill, underline, underline_fill, none, plain };
 //! The colour of the hover mark. text: the strip's text colour (a neutral wash).
 enum class HoverColour : std::uint8_t { text, accent, custom };
-//! What the hovered tab's title does: brighten to the full text colour (as the active one),
-//! stay dimmed, or take the hover colour.
-enum class HoverText : std::uint8_t { brighten, unchanged, colour };
+//! What the hovered tab's title does: brighten (the other tabs: to the active tab's text colour;
+//! the active tab: lighter, towards white), stay as it is, take the hover colour, or take its own
+//! colour (Settings::hover_text_argb, active_hover_text_argb).
+//! New values go at the end: the codec stores the number.
+enum class HoverText : std::uint8_t { brighten, unchanged, colour, custom };
 
 //! The tab font. An empty family follows the host (Columns UI's font for this component, or the
 //! Default UI's tab font). Fallback families are tried in order for characters the font lacks.
@@ -107,6 +108,13 @@ struct Settings {
     std::uint32_t accent_argb{0xFF3EA6FFu};
     //! Opacity of the active tab's accent fill (pill, chip) in percent; 0 = automatic.
     std::uint8_t accent_strength{0};
+    //! Text colours, 0xAARRGGBB: the other tabs' titles (else the theme's text, dimmed) and the
+    //! active and selected tabs' (else the theme's text). Used as chosen, without the contrast
+    //! checks the theme's colours get.
+    bool custom_text{false};
+    std::uint32_t text_argb{0xFFA0A0A0u};
+    bool custom_active_text{false};
+    std::uint32_t active_text_argb{0xFFFFFFFFu};
     StripBackground strip_background{StripBackground::theme};
     //! 0xAARRGGBB, used when strip_background == custom.
     std::uint32_t background_argb{0xFF202020u};
@@ -116,6 +124,9 @@ struct Settings {
     //! instead of its own background; tabs keep their fills. Not while auto-hide draws the strip
     //! over the panel: there is no layout background there, only the panel.
     bool transparent_background{false};
+    //! With a transparent background: how much of the strip's own background is painted over
+    //! what the host paints, in percent (0 = none, fully transparent).
+    std::uint8_t transparent_opacity{0};
     std::uint16_t corner_radius{4};
     bool chip{false};
     //! Tab switches animate: the indicator (underline, pill or chip fill) slides.
@@ -137,6 +148,8 @@ struct Settings {
     //! Opacity of the outline or underline in percent; 0 = automatic.
     std::uint8_t hover_line_opacity{0};
     HoverText hover_text{HoverText::brighten};
+    //! Used when hover_text == custom.
+    std::uint32_t hover_text_argb{0xFFFFFFFFu};
     //! The hover mark fades in and out over hover_fade_ms.
     bool hover_fade{false};
     std::uint16_t hover_fade_ms{120};
@@ -149,8 +162,10 @@ struct Settings {
     std::uint8_t active_hover_fill_strength{0};
     std::uint8_t active_hover_line_width{0};
     std::uint8_t active_hover_line_opacity{0};
-    //! The hovered active tab's title gets lighter (OKLab lightness towards white).
-    bool active_hover_lighten{false};
+    //! brighten: the title gets lighter (OKLab lightness towards white); up to 1.6 a checkbox
+    //! (the codec still writes it as s_active_hover_lighten).
+    HoverText active_hover_text{HoverText::unchanged};
+    std::uint32_t active_hover_text_argb{0xFFFFFFFFu};
 
     bool wheel_cycles{true};
     //! A click on the tab that is already active (a click on another one just switches).
