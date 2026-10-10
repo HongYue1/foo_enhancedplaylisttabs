@@ -88,8 +88,10 @@ struct TabFont {
 //! light strip. The Look page's slider rests there while Automatic is ticked.
 inline constexpr std::uint8_t auto_fill_dark = 50;
 inline constexpr std::uint8_t auto_fill_light = 40;
-//! Settings::chip_strength 0 (automatic): the chips' fill in percent.
-inline constexpr std::uint8_t auto_chip_strength = 5;
+//! Settings::chip_strength 0 (automatic): the chips' fill in percent on a dark and on a light
+//! strip. The Look page's slider rests there while Automatic is ticked.
+inline constexpr std::uint8_t auto_chip_dark = 12;
+inline constexpr std::uint8_t auto_chip_light = 10;
 
 struct Settings {
     StripPosition position{StripPosition::top};
@@ -143,7 +145,7 @@ struct Settings {
     ChipColour chip_colour{ChipColour::neutral};
     //! 0xAARRGGBB, used when chip_colour == custom.
     std::uint32_t chip_argb{0xFF3EA6FFu};
-    //! Opacity of the chips' fill in percent; 0 = automatic (auto_chip_strength).
+    //! Opacity of the chips' fill in percent; 0 = automatic (auto_chip_dark, auto_chip_light).
     std::uint8_t chip_strength{0};
     //! Tab switches animate: the indicator (underline, pill or chip fill) slides.
     bool animations{true};

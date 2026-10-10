@@ -172,7 +172,8 @@ void fill_shape(ID2D1RenderTarget* target, ID2D1Brush* fill, ID2D1Brush* line, c
 // The look. Overlay strengths are alpha of the text colour over the strip.
 constexpr float hover_alpha_dark = 0.08f;
 constexpr float hover_alpha_light = 0.06f;
-constexpr float chip_alpha = static_cast<float>(auto_chip_strength) / 100.0f;
+constexpr float chip_alpha_dark = static_cast<float>(auto_chip_dark) / 100.0f;
+constexpr float chip_alpha_light = static_cast<float>(auto_chip_light) / 100.0f;
 constexpr float chip_active_alpha = 0.18f;
 constexpr float pill_alpha_dark = static_cast<float>(auto_fill_dark) / 100.0f;
 constexpr float pill_alpha_light = static_cast<float>(auto_fill_light) / 100.0f;
@@ -804,7 +805,8 @@ COLORREF StripWindow::chip_fill() const noexcept {
 }
 
 float StripWindow::chip_fill_alpha() const noexcept {
-    return settings_.chip_strength != 0 ? static_cast<float>(settings_.chip_strength) / 100.0f : chip_alpha;
+    if (settings_.chip_strength != 0) return static_cast<float>(settings_.chip_strength) / 100.0f;
+    return theme_.dark ? chip_alpha_dark : chip_alpha_light;
 }
 
 bool StripWindow::accent_filled() const noexcept {
@@ -1452,10 +1454,11 @@ void StripWindow::draw_tab(std::size_t index) noexcept {
         fill = theme_.accent;
         fill_alpha = (theme_.dark ? selected_alpha_dark : selected_alpha_light) + hover_alpha * active_hover;
     } else if (active_hover > 0.0f || settings_.chip) {
-        // The active chip (underline, text only) is a little stronger than the others.
+        // The active chip (underline, text only) is stronger than the others, at any strength.
         const float chip = settings_.chip ? chip_fill_alpha() : 0.0f;
-        const float rest = settings_.chip ? (active ? chip + hover_alpha * 0.5f : chip) : 0.0f;
-        const float full = hover_alpha + chip;
+        const float active_chip = (std::min)(1.0f, chip + (std::max)(chip * 0.5f, hover_alpha * 0.5f));
+        const float rest = settings_.chip ? (active ? active_chip : chip) : 0.0f;
+        const float full = settings_.chip ? rest + hover_alpha * 0.5f : hover_alpha;
         fill_alpha = rest + (full - rest) * active_hover;
         if (settings_.chip) {
             fill = chip_fill();

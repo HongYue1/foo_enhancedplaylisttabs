@@ -577,7 +577,8 @@ void ConfigureDialog::settings_to_controls() {
     select(IDC_CHIP_COLOUR, static_cast<int>(s.chip_colour));
     ::SetWindowTextW(control(IDC_CHIP_HEX), format_rgb(s.chip_argb).c_str());
     check(IDC_CHIP_STRENGTH_AUTO, s.chip_strength == 0);
-    set_slider(IDC_CHIP_STRENGTH, 2, 60, s.chip_strength != 0 ? s.chip_strength : auto_chip_strength);
+    set_slider(IDC_CHIP_STRENGTH, 2, 60,
+               s.chip_strength != 0 ? s.chip_strength : (state_.dark ? auto_chip_dark : auto_chip_light));
     set_number(IDC_RADIUS, s.corner_radius);
     check(IDC_STRENGTH_AUTO, s.accent_strength == 0);
     set_slider(IDC_STRENGTH, 5, 100,
@@ -1000,6 +1001,22 @@ void ConfigureDialog::on_command(UINT code, int id, CWindow) {
         return;
     }
     default: break;
+    }
+    if (code == BN_CLICKED && checked(id)) {
+        // Ticking Automatic puts the slider back where it rests: on the automatic value.
+        int bar = 0, rest = 0;
+        switch (id) {
+        case IDC_STRENGTH_AUTO: bar = IDC_STRENGTH, rest = state_.dark ? auto_fill_dark : auto_fill_light; break;
+        case IDC_CHIP_STRENGTH_AUTO:
+            bar = IDC_CHIP_STRENGTH, rest = state_.dark ? auto_chip_dark : auto_chip_light;
+            break;
+        case IDC_HOVER_FILL_AUTO: bar = IDC_HOVER_FILL, rest = 10; break;
+        case IDC_HOVER_ACTIVE_FILL_AUTO: bar = IDC_HOVER_ACTIVE_FILL, rest = 10; break;
+        case IDC_HOVER_LINE_AUTO: bar = IDC_HOVER_LINE, rest = 50; break;
+        case IDC_HOVER_ACTIVE_LINE_AUTO: bar = IDC_HOVER_ACTIVE_LINE, rest = 50; break;
+        default: break;
+        }
+        if (bar != 0) ::SendMessageW(control(bar), TBM_SETPOS, TRUE, rest);
     }
     if (code == EN_CHANGE || code == BN_CLICKED || code == CBN_SELCHANGE) {
         settings_from_controls();

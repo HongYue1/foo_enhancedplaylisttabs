@@ -193,8 +193,11 @@ in dark mode (fixed in 1.2.3).
   `hover_enabled` run per set. The fade is shared by both sets: the first row, above the columns.
 - Chips (Look page): `chip_colour` (`ChipColour`: neutral = the text colour, accent = whatever
   the accent source gives, the cover's colour too, custom = `chip_argb`) and `chip_strength`
-  (0 = `auto_chip_strength`, 5 %; else 2-60). `StripWindow::chip_fill` / `chip_fill_alpha`; from
-  `strong_fill` on the title is checked for contrast against the chip unless it is a picked colour.
+  (0 = `auto_chip_dark` / `auto_chip_light`, 12 and 10 %; else 2-60). The active chip (underline,
+  text only) adds half its strength, at least half the hover wash, so it shows at any strength.
+  `StripWindow::chip_fill` / `chip_fill_alpha`; from `strong_fill` on the title is checked for
+  contrast against the chip unless it is a picked colour.
+- Ticking an Automatic box puts its slider back on the automatic value (`on_command`).
 - The fade keeps a `hover_level` per `Item` (so it moves with reorders) and is read only while
   `hover_fading_`; otherwise `index == hover_` decides. Anything that resets `hover_` on an item
   change must call `stop_hover_fade()`.
