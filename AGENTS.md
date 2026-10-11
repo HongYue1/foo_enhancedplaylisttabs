@@ -148,6 +148,13 @@ in dark mode (fixed in 1.2.3).
   leaves the maximum open only there; PSS and other hosts keep the fixed size (user: PSS 32-bit OK).
   Test: layout export, swap the Row GUID for the Column's in the blob, import; remove the child in
   Preferences (leaf menu: Remove at 60,17 of the popup).
+- Default UI: the element can have no hosted element too (edit menu "Remove hosted element",
+  "Add hosted element..."; forum request). Only a missing/empty/damaged config gets the default
+  Playlist View; a saved config without a child section loads without one. DUI splitters use one
+  window class for both directions (`{57D1E69F-24BD-44f3-A1E4-6F542626C513}`), so `host_across`
+  checks the visible siblings: side by side (same top/bottom) = left/right splitter, max left open.
+  Rechecked on `WM_WINDOWPOSCHANGED` (the direction shows only after the splitter laid us out).
+  Tested in dui64 (Quick setup "Album List + Properties", Replace UI Element in layout mode).
 - `minmax_test`: Windows does not clamp a child to its own `WM_GETMINMAXINFO`, so a taller
   element means the host honoured the limits we reported.
 

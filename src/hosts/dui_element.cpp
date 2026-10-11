@@ -36,6 +36,7 @@ enum EditCommand : unsigned {
     edit_replace,
     edit_copy,
     edit_paste,
+    edit_remove,
     edit_configure,
     edit_count,
 };
@@ -82,18 +83,22 @@ enum ChildCommand : unsigned {
     return child;
 }
 
+//! A new element (no settings yet) or a damaged blob gets the default child; saved settings
+//! without one are a strip on its own (the hosted element was removed).
 [[nodiscard]] InstanceData decode_or_default(const ui_element_config::ptr& cfg) {
     InstanceData data;
+    bool fresh = true;
     try {
         if (cfg.is_valid() && cfg->get_guid() == guids::dui_element && cfg->get_data_size() != 0) {
             data = decode_instance(config_bytes(cfg));
+            fresh = false;
         }
     } catch (const std::exception& e) {
         // A damaged blob must not take the whole layout down.
         log::warn(std::string("could not read settings, using defaults: ") + e.what());
         data = InstanceData{};
     }
-    if (!data.has_child) {
+    if (fresh) {
         data.has_child = true;
         data.child = default_child();
     }
@@ -164,6 +169,7 @@ public:
     // From the child's callback ----------------------------------------------------------------
 
     void child_min_max_changed() noexcept { on_child_limits_changed(); }
+    void remove_child() noexcept;
     bool child_query_color(const GUID& what, t_ui_color& out) { return callback_->query_color(what, out); }
     t_ui_font child_query_font(const GUID& what) { return callback_->query_font_ex(what); }
     bool edit_mode() const noexcept {
@@ -182,6 +188,7 @@ public:
 protected:
     // SwitcherCore hooks
     HWND host_child_wnd() const noexcept override { return child_wnd_; }
+    bool host_across(bool strip_along_height) const noexcept override;
     void host_query_limits(Limits& out) noexcept override;
     void host_limits_changed() noexcept override {
         try {
@@ -223,6 +230,13 @@ private:
     const ui_element_instance_callback::ptr callback_;
     HWND wnd_{nullptr};
     bool dying_{false};
+    //! False: the hosted element was removed, the strip is all there is.
+    bool has_child_{true};
+    //! across_now() when last checked: the splitter's direction shows only once it laid us out.
+    unsigned across_{0};
+    [[nodiscard]] unsigned across_now() const noexcept {
+        return (host_across(true) ? 1u : 0u) | (host_across(false) ? 2u : 0u);
+    }
     ChildRecord child_;
     std::vector<RawField> unknown_sections_;
     ui_element_instance_ptr child_instance_;
@@ -271,11 +285,11 @@ InstanceData DuiSwitcher::snapshot() const {
     InstanceData data;
     data.settings = settings_;
     data.unknown_settings = unknown_settings_;
-    data.has_child = true;
+    data.has_child = has_child_;
     data.child.guid = child_.guid;
     data.child.config = child_.config;
     try {
-        if (child_instance_.is_valid()) {
+        if (has_child_ && child_instance_.is_valid()) {
             const ui_element_config::ptr cfg = child_instance_->get_configuration();
             // A missing element's stand-in has no configuration of its own: keep the original.
             if (cfg.is_valid() && cfg->get_guid() == child_.guid) data.child.config = config_bytes(cfg);
@@ -287,6 +301,7 @@ InstanceData DuiSwitcher::snapshot() const {
 }
 
 ui_element_config::ptr DuiSwitcher::child_config() const {
+    if (!has_child_) return ui_element_config::g_create_empty();
     const InstanceData data = snapshot();
     return ui_element_config::g_create(data.child.guid, data.child.config.data(), data.child.config.size());
 }
@@ -294,11 +309,18 @@ ui_element_config::ptr DuiSwitcher::child_config() const {
 void DuiSwitcher::set_configuration(ui_element_config::ptr cfg) {
     InstanceData data = decode_or_default(cfg);
     unknown_sections_ = std::move(data.unknown_sections);
-    const bool same_child = data.child.guid == child_.guid && data.child.config == snapshot().child.config;
+    const InstanceData now = snapshot();
+    const bool same_child = data.has_child == now.has_child &&
+                            (!data.has_child || (data.child.guid == now.child.guid && data.child.config == now.child.config));
     reload_settings(std::move(data.settings), std::move(data.unknown_settings));
     if (same_child) return;
     if (wnd_ == nullptr) {
+        has_child_ = data.has_child;
         child_ = std::move(data.child);
+        return;
+    }
+    if (!data.has_child) {
+        remove_child();
         return;
     }
     set_child(ui_element_config::g_create(data.child.guid, data.child.config.data(), data.child.config.size()));
@@ -309,6 +331,7 @@ void DuiSwitcher::set_configuration(ui_element_config::ptr cfg) {
 
 void DuiSwitcher::initialize(HWND parent, const ui_element_config::ptr& cfg) {
     InstanceData data = decode_or_default(cfg);
+    has_child_ = data.has_child;
     child_ = std::move(data.child);
     unknown_sections_ = std::move(data.unknown_sections);
     load_settings(std::move(data.settings), std::move(data.unknown_settings));
@@ -356,6 +379,13 @@ LRESULT DuiSwitcher::on_message(HWND wnd, UINT msg, WPARAM wp, LPARAM lp) noexce
             destroy_child();
             break;
         }
+        case WM_WINDOWPOSCHANGED:
+            // Without a child, being placed in a splitter shows its direction (host_across).
+            if (!has_child_ && across_now() != across_) {
+                across_ = across_now();
+                on_child_limits_changed();
+            }
+            break;
         case WM_CONTEXTMENU:
             if (on_context_menu(wp, lp)) return 0;
             // Our own window or the strip: the parent shows the menu for this element.
@@ -392,6 +422,10 @@ bool DuiSwitcher::on_context_menu(WPARAM wp, LPARAM lp) noexcept {
 
 void DuiSwitcher::create_child() noexcept {
     if (wnd_ == nullptr || child_instance_.is_valid()) return;
+    if (!has_child_) {
+        child_changed();
+        return;
+    }
     try {
         child_callback_ = new service_impl_t<ChildCallback>(this);
         const ui_element_config::ptr cfg =
@@ -443,11 +477,43 @@ void DuiSwitcher::set_child(ui_element_config::ptr cfg) noexcept {
         next.guid = cfg->get_guid();
         next.config = config_bytes(cfg);
         destroy_child();
+        has_child_ = true;
         child_ = std::move(next);
         create_child();
     } catch (const std::exception& e) {
         log::warn(std::string("could not replace the element: ") + e.what());
     }
+}
+
+void DuiSwitcher::remove_child() noexcept {
+    destroy_child();
+    has_child_ = false;
+    child_ = ChildRecord{};
+    across_ = across_now();
+    child_changed();
+}
+
+// Default UI's splitters use one window class for both directions; the panels beside us tell
+// which: side by side (same top and bottom) is a horizontal one, where a strip-high maximum would
+// cap the whole splitter. Anywhere else the strip keeps its fixed size.
+bool DuiSwitcher::host_across(bool strip_along_height) const noexcept {
+    const HWND parent = wnd_ != nullptr ? GetParent(wnd_) : nullptr;
+    if (parent == nullptr) return false;
+    wchar_t name[64]{};
+    if (GetClassNameW(parent, name, 64) == 0 || wcscmp(name, L"{57D1E69F-24BD-44f3-A1E4-6F542626C513}") != 0) {
+        return false;
+    }
+    RECT self{};
+    GetWindowRect(wnd_, &self);
+    for (HWND other = GetWindow(parent, GW_CHILD); other != nullptr; other = GetWindow(other, GW_HWNDNEXT)) {
+        if (other == wnd_ || !IsWindowVisible(other)) continue;
+        RECT rc{};
+        GetWindowRect(other, &rc);
+        const bool beside = strip_along_height ? rc.top == self.top && rc.bottom == self.bottom && rc.left != self.left
+                                               : rc.left == self.left && rc.right == self.right && rc.top != self.top;
+        if (beside) return true;
+    }
+    return false;
 }
 
 void DuiSwitcher::host_query_limits(Limits& out) noexcept {
@@ -611,10 +677,12 @@ void DuiSwitcher::edit_mode_context_menu_build(const POINT&, bool, HMENU menu, u
         can_paste = ui_element_common_methods::get()->is_paste_available();
     } catch (...) {
     }
-    AppendMenuW(menu, MF_STRING, base + edit_replace, L"Replace hosted element...");
-    AppendMenuW(menu, MF_STRING | (child_.guid == pfc::guid_null ? MF_GRAYED : 0), base + edit_copy,
+    AppendMenuW(menu, MF_STRING, base + edit_replace, has_child_ ? L"Replace hosted element..." : L"Add hosted element...");
+    AppendMenuW(menu, MF_STRING | (!has_child_ || child_.guid == pfc::guid_null ? MF_GRAYED : 0), base + edit_copy,
                 L"Copy hosted element");
     AppendMenuW(menu, MF_STRING | (can_paste ? 0 : MF_GRAYED), base + edit_paste, L"Paste as hosted element");
+    // Tabs on their own: the playlist (or anything else) can sit elsewhere in the layout.
+    AppendMenuW(menu, MF_STRING | (has_child_ ? 0 : MF_GRAYED), base + edit_remove, L"Remove hosted element");
     AppendMenuW(menu, MF_SEPARATOR, 0, nullptr);
     AppendMenuW(menu, MF_STRING, base + edit_configure, L"Configure " EPT_NAME L"...");
 }
@@ -626,6 +694,7 @@ void DuiSwitcher::edit_mode_context_menu_command(const POINT&, bool, unsigned id
     case edit_replace: child_request_replace(); break;
     case edit_copy: ui_element_common_methods::get()->copy(child_config()); break;
     case edit_paste: host_paste_element(child_id); break;
+    case edit_remove: remove_child(); break;
     case edit_configure: run_configure(wnd_, true); break;
     default: break;
     }
@@ -652,7 +721,7 @@ void DuiSwitcher::host_replace_element(unsigned, const GUID& guid) {
             if (!ui_element_helpers::find(elem, guid)) return;
             // Like foo_ui_std: the new element may take over the old one's settings (a splitter
             // its children, for one).
-            if (child_.guid != pfc::guid_null) cfg = elem->import(child_config());
+            if (has_child_ && child_.guid != pfc::guid_null) cfg = elem->import(child_config());
             if (!cfg.is_valid()) cfg = elem->get_default_configuration();
         }
         host_replace_element(child_id, cfg);
@@ -672,15 +741,16 @@ void DuiSwitcher::host_replace_element(unsigned, ui_element_config::ptr cfg) {
 class Children : public ui_element_children_enumerator {
 public:
     explicit Children(InstanceData data) : data_(std::move(data)) {}
-    t_size get_count() override { return 1; }
+    t_size get_count() override { return data_.has_child ? 1 : 0; }
     ui_element_config::ptr get_item(t_size index) override {
-        if (index != 0) return ui_element_config::g_create_empty();
+        if (index != 0 || !data_.has_child) return ui_element_config::g_create_empty();
         return ui_element_config::g_create(data_.child.guid, data_.child.config.data(), data_.child.config.size());
     }
     bool can_set_count() override { return false; }
     void set_count(t_size) override {}
     void set_item(t_size index, ui_element_config::ptr cfg) override {
         if (index != 0 || !cfg.is_valid()) return;
+        data_.has_child = true;
         data_.child.guid = cfg->get_guid();
         data_.child.config = config_bytes(cfg);
     }
