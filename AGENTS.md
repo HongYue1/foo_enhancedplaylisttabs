@@ -10,7 +10,7 @@
   model, title fields, playlist sort, child min/max). The last line of `test/tests.out` must be
   `EXIT=0 0 0 0 0 0 0 0`.
 - Dialogs: run the dialog check on `foo_enhancedplaylisttabs.rc` after every layout change; 0
-  problems. Every page is 300 x 218 DU, the size of `IDC_PAGE_HOST`: a taller page is clipped.
+  problems. Every page is 340 x 234 DU, the size of `IDC_PAGE_HOST`: a taller page is clipped.
 - Package: `cmd //c package.bat` -> `dist/foo_enhancedplaylisttabs.fb2k-component` (x86 at the
   root, x64 in `x64/`) and `dist/symbols/*.pdb`. Version in `src/version.h`.
 - Cover colour and contrast come from `../fb2k-common` (shared with Better Tabs, Media Bar and
@@ -292,6 +292,16 @@ does not break an existing layout. Per-playlist state (hidden, locked) is stored
 property, so it travels with the playlist.
 
 ### Title fields
+
+- Tooltip format (`Settings::tooltip_format`, codec id 91; Titles page): formatted only for the
+  hovered tab (`StripListener::on_strip_tooltip`, called from `update_tooltip`), shown even when
+  the title fits; empty = the old clipped-title tooltip. Its fields add to the model needs
+  (`tip_fields_`: counts, lengths, queue) but never relabel. A length that arrives while the tip
+  is up updates it (`StripWindow::refresh_tooltip`, TTM_UPDATETIPTEXT). `TTM_SETMAXTIPWIDTH`
+  is set so `$crlf()` breaks lines. Forum request (Defender, slim strip without a child).
+- 1.8.1: the dialog went from 300 to 340 DU wide (and pages 218 -> 234 high for the tooltip row):
+  ten page tabs scrolled at 100% scale with the light theme (forum screenshot). Hover page
+  columns at 77 and 207.
 
 - `%is_playing%` / `%isplaying%` are on only while playback runs or is paused from that playlist;
   `%playlist_is_playing%` keeps the old meaning: `get_playing_playlist()`, which foobar2000 keeps

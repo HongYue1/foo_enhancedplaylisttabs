@@ -136,6 +136,9 @@ protected:
     void insert_visible(std::size_t pos, std::size_t playlist, std::uint8_t pin);
     void erase_visible(std::size_t pos) noexcept;
     void update_label(std::size_t playlist) noexcept;
+    //! Runs `script` (compiled from `source` when that changed) for `playlist`. May throw.
+    [[nodiscard]] std::wstring format_playlist(titleformat_object::ptr& script, std::string& source,
+                                               const std::string& pattern, std::size_t playlist);
     //! Title formatting is on (labels_ holds one title per playlist; empty otherwise).
     [[nodiscard]] bool format_titles() const noexcept;
     //! The script may show a playlist's position: inserts, removals and moves relabel everything.
@@ -239,6 +242,7 @@ protected:
                                 bool before) noexcept override;
     void on_strip_pointer() noexcept override;
     void on_strip_paint_failed(const char* detail) noexcept override;
+    bool on_strip_tooltip(std::size_t index, std::wstring& text) noexcept override;
     // HotZoneListener
     void on_hot_zone(bool inside, bool clicked) noexcept override;
     // ConfigureTarget
@@ -312,6 +316,9 @@ protected:
     std::unordered_map<std::uint64_t, std::wstring> labels_;
     //! TitleField bits the title script uses (0 with playlist names).
     std::uint32_t title_fields_{0};
+    //! title_fields() of Settings::tooltip_format: its model needs (counts, lengths, queue) only;
+    //! a tooltip is formatted when shown, so nothing is relabelled for it.
+    std::uint32_t tip_fields_{0};
     //! The playing playlist's key and playback state when titles show them (0 = none).
     std::uint64_t playing_key_{0};
     bool playback_on_{false};
@@ -329,6 +336,8 @@ protected:
     bool in_playlist_event_{false};
     titleformat_object::ptr title_script_;
     std::string title_source_;
+    titleformat_object::ptr tip_script_;
+    std::string tip_source_;
 
     // Drag and drop onto the strip (only while a drag is over it).
     StripDrop strip_drop_;

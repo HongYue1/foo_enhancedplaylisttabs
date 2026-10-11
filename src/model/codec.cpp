@@ -273,6 +273,7 @@ enum SettingId : std::uint16_t {
     s_chip_colour = 88,
     s_chip_argb = 89,
     s_chip_strength = 90,
+    s_tooltip_format = 91,
 };
 
 //! Settings::middle_action as the value builds up to 1.4 read (0 for an action they lack).
@@ -373,6 +374,7 @@ void write_settings(Writer& w, const Settings& s) {
     field_u8(w, s_chip_colour, static_cast<std::uint8_t>(s.chip_colour));
     field_u32(w, s_chip_argb, s.chip_argb);
     field_u8(w, s_chip_strength, s.chip_strength);
+    field_string(w, s_tooltip_format, s.tooltip_format);
 }
 
 //! Returns false for an id this build does not know.
@@ -483,6 +485,7 @@ bool read_setting(Settings& s, std::uint16_t id, std::span<const std::uint8_t> v
     case s_chip_colour: read_enum(v, s.chip_colour, ChipColour::custom); return true;
     case s_chip_argb: read_u32(v, s.chip_argb); return true;
     case s_chip_strength: read_u8(v, s.chip_strength); return true;
+    case s_tooltip_format: s.tooltip_format.assign(reinterpret_cast<const char*>(v.data()), v.size()); return true;
     default: return false;
     }
 }

@@ -73,6 +73,7 @@ Settings odd_settings() {
     s.switch_ms = 300;
     s.title_mode = TitleMode::format;
     s.title_format = "%title% [%size%] \xE2\x99\xAA";
+    s.tooltip_format = "%title%$crlf()%size% tracks, %length%";
     s.dblclick_new = false;
     s.dblclick_action = TabAction::duplicate;
     s.follow_playing = true;

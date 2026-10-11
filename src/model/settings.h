@@ -210,6 +210,9 @@ struct Settings {
     TitleMode title_mode{TitleMode::playlist_name};
     //! Used when title_mode == format; fields in model/playlist_title.h.
     std::string title_format{"%title%"};
+    //! Tab tooltips, title formatting with the same fields (any title mode); $crlf() breaks the
+    //! line. Empty = the whole title, only when it is cut off. Formatted for the hovered tab only.
+    std::string tooltip_format{};
     //! A double click on empty strip space creates a playlist (the playlist manager's own
     //! "New Playlist", "New Playlist (2)"... naming) and activates it.
     bool dblclick_new{true};

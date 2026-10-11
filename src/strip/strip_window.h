@@ -132,6 +132,13 @@ public:
     //! The pointer entered or left the strip, mouse capture or keyboard focus changed. Auto-hide
     //! re-evaluates on it; nothing else needs it.
     virtual void on_strip_pointer() noexcept {}
+    //! The hovered tab's tooltip when the host formats its own (Settings::tooltip_format): true
+    //! and `text` set, shown even when the title fits. false or empty text = the default tooltip.
+    virtual bool on_strip_tooltip(std::size_t index, std::wstring& text) noexcept {
+        (void)index;
+        (void)text;
+        return false;
+    }
     //! Painting failed (first failure of a run); `detail` says which step, for the log.
     virtual void on_strip_paint_failed(const char* detail) noexcept { (void)detail; }
 
@@ -166,6 +173,9 @@ public:
     void erase_item(std::size_t index, std::size_t active) noexcept;
     //! New text for one tab; builds its layout only if the label or icon changed.
     void update_item(std::size_t index, StripItem item) noexcept;
+    //! Asks the listener again for the shown tooltip (on_strip_tooltip) and updates it in place:
+    //! what it shows changed (a playlist's length arrived) while the label stayed the same.
+    void refresh_tooltip() noexcept;
     //! Same tabs in a new order, given as their keys. Builds nothing. False (and nothing
     //! changed) if the keys are not a permutation of the current ones: use set_items().
     bool reorder_items(std::span<const std::uint64_t> keys, std::size_t active) noexcept;

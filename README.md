@@ -24,7 +24,7 @@
   background that can be tinted with it. Colours, fonts and dark mode follow your Default UI or
   Columns UI settings.
 - **Titles** from the playlist name or title formatting (track count, length, playing mark...),
-  updated live.
+  updated live. **Tooltips** can have their own title formatting (`$crlf()` for a new line).
 - **Playlist commands** in the tab menu: new, rename, duplicate, remove, save, load, lock, hide,
   pin, move and sort, plus foobar2000's track menu for the playlist if you turn it on.
 - **Pinned tabs** stay at either end and never go to the overflow.

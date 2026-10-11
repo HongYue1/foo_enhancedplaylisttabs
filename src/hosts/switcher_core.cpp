@@ -410,9 +410,11 @@ bool SwitcherCore::titles_follow_position() const noexcept { return (title_field
 
 void SwitcherCore::sync_title_needs() noexcept {
     title_fields_ = format_titles() ? title_fields(settings_.title_format) : 0;
+    tip_fields_ = settings_.tooltip_format.empty() ? 0 : title_fields(settings_.tooltip_format);
+    const std::uint32_t fields = title_fields_ | tip_fields_;
     std::uint32_t needs = 0;
-    if ((title_fields_ & title_field_size) != 0) needs |= playlists::need_counts;
-    if ((title_fields_ & title_field_length) != 0) needs |= playlists::need_lengths;
+    if ((fields & title_field_size) != 0) needs |= playlists::need_counts;
+    if ((fields & title_field_length) != 0) needs |= playlists::need_lengths;
     if (subscribed_) playlists::set_needs(*this, needs);
     playlists::TitleContext context;
     playlists::read_playback(context);
@@ -422,7 +424,7 @@ void SwitcherCore::sync_title_needs() noexcept {
     playback_paused_ = context.paused;
     queue_total_ = 0;
     queue_counts_.clear();
-    if ((title_fields_ & (title_field_queue_total | title_field_queue_playlist)) != 0) read_queue();
+    if ((fields & (title_field_queue_total | title_field_queue_playlist)) != 0) read_queue();
 }
 
 void SwitcherCore::read_queue() noexcept {
@@ -460,11 +462,12 @@ std::size_t SwitcherCore::queued_in(std::uint64_t key) const noexcept {
 
 void SwitcherCore::on_queue() noexcept {
     if (core_wnd() == nullptr) return;
-    if ((title_fields_ & (title_field_queue_total | title_field_queue_playlist)) == 0) return;
+    if (((title_fields_ | tip_fields_) & (title_field_queue_total | title_field_queue_playlist)) == 0) return;
     try {
         const std::size_t total_before = queue_total_;
         std::vector<std::pair<std::uint64_t, std::size_t>> before = std::move(queue_counts_);
         read_queue();
+        if (tip_fields_ != 0) strip_.refresh_tooltip();
         const auto& entries = playlists::entries();
         if ((title_fields_ & title_field_queue_total) != 0 && queue_total_ != total_before) {
             // Every tab shows the total: relabel all; tabs whose text is unchanged keep their layouts.
@@ -527,20 +530,36 @@ void SwitcherCore::update_label(std::size_t playlist) noexcept {
     if (!format_titles() || playlist >= entries.size()) return;
     std::wstring& label = labels_[entries[playlist].key];
     try {
-        if (!title_script_.is_valid() || title_source_ != settings_.title_format) {
-            title_script_.release();
-            titleformat_compiler::get()->compile_safe_ex(title_script_, settings_.title_format.c_str(),
-                                                         "(invalid title)");
-            title_source_ = settings_.title_format;
-        }
-        playlists::TitleContext context;
-        context.active = playlists::active();
-        playlists::read_playback(context);
-        context.queue_total = queue_total_;
-        context.queue_here = queued_in(entries[playlist].key);
-        label = playlists::format_title(title_script_, playlist, entries[playlist], context);
+        label = format_playlist(title_script_, title_source_, settings_.title_format, playlist);
     } catch (...) {
         label = entries[playlist].name;
+    }
+}
+
+std::wstring SwitcherCore::format_playlist(titleformat_object::ptr& script, std::string& source,
+                                           const std::string& pattern, std::size_t playlist) {
+    const auto& entries = playlists::entries();
+    if (playlist >= entries.size()) return {};
+    if (!script.is_valid() || source != pattern) {
+        script.release();
+        titleformat_compiler::get()->compile_safe_ex(script, pattern.c_str(), "(invalid title)");
+        source = pattern;
+    }
+    playlists::TitleContext context;
+    context.active = playlists::active();
+    playlists::read_playback(context);
+    context.queue_total = queue_total_;
+    context.queue_here = queued_in(entries[playlist].key);
+    return playlists::format_title(script, playlist, entries[playlist], context);
+}
+
+bool SwitcherCore::on_strip_tooltip(std::size_t index, std::wstring& text) noexcept {
+    if (settings_.tooltip_format.empty()) return false;
+    try {
+        text = format_playlist(tip_script_, tip_source_, settings_.tooltip_format, playlist_of_strip(index));
+        return true;
+    } catch (...) {
+        return false;
     }
 }
 
@@ -1068,9 +1087,10 @@ void SwitcherCore::on_playlists(playlists::Change change, std::size_t index) noe
         }
         break;
     case Change::items:
-        // Only arrives while %size% or %length% is shown (sync_title_needs), coalesced.
+        // Only arrives while %size% or %length% is shown (sync_title_needs; tooltips count), coalesced.
         what = "tracks changed";
         (void)relabel_if_changed(index);
+        if (tip_fields_ != 0) strip_.refresh_tooltip();
         break;
     case Change::created:
         what = "created";
@@ -2779,7 +2799,8 @@ void SwitcherCore::configure_closed(bool ok, const ConfigureState& state) noexce
 void SwitcherCore::preview(const ConfigureState& state) noexcept {
     try {
         const bool titles_changed =
-            state.settings.title_mode != settings_.title_mode || state.settings.title_format != settings_.title_format;
+            state.settings.title_mode != settings_.title_mode || state.settings.title_format != settings_.title_format ||
+            state.settings.tooltip_format != settings_.tooltip_format;
         settings_ = state.settings;
         clamp(settings_);
         if (core_wnd() == nullptr) return;

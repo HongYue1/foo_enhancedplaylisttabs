@@ -2537,6 +2537,8 @@ void StripWindow::ensure_tooltip() noexcept {
     tool.uId = 1;
     tool.lpszText = LPSTR_TEXTCALLBACKW;
     SendMessageW(tooltip_, TTM_ADDTOOLW, 0, reinterpret_cast<LPARAM>(&tool));
+    // Any maximum width makes the tooltip break lines at $crlf(); this one never wraps.
+    SendMessageW(tooltip_, TTM_SETMAXTIPWIDTH, 0, 32767);
     if (theme_.dark) SetWindowTheme(tooltip_, L"DarkMode_Explorer", nullptr);
 }
 
@@ -2550,7 +2552,17 @@ bool StripWindow::tooltip_wanted(std::size_t index) const noexcept {
 
 void StripWindow::update_tooltip() noexcept {
     if (tooltip_ == nullptr || wnd_ == nullptr) return;
-    const std::size_t index = tooltip_wanted(hover_) && !dragging_ ? hover_ : no_index;
+    // A host tooltip is formatted here, once per tab the pointer reaches (and on item changes).
+    std::wstring custom;
+    bool has_custom = false;
+    if (hover_ < items_.size() && !dragging_ && listener_ != nullptr) {
+        try {
+            has_custom = listener_->on_strip_tooltip(hover_, custom) && !custom.empty();
+        } catch (...) {
+            has_custom = false;
+        }
+    }
+    const std::size_t index = (has_custom || tooltip_wanted(hover_)) && !dragging_ ? hover_ : no_index;
     if (index == tip_index_ && index == no_index) return;
     if (index != tip_index_) SendMessageW(tooltip_, TTM_POP, 0, 0);
     tip_index_ = index;
@@ -2559,7 +2571,8 @@ void StripWindow::update_tooltip() noexcept {
             tip_text_.clear();
         } else {
             const StripItem& spec = items_[index].spec;
-            tip_text_ = spec.tooltip.empty() ? spec.label : spec.tooltip;
+            if (has_custom) tip_text_ = std::move(custom);
+            else tip_text_ = spec.tooltip.empty() ? spec.label : spec.tooltip;
         }
     } catch (...) {
         tip_text_.clear();
@@ -2572,6 +2585,25 @@ void StripWindow::update_tooltip() noexcept {
     tool.uId = 1;
     tool.rect = index != no_index ? tab_rect(index) : RECT{};
     SendMessageW(tooltip_, TTM_NEWTOOLRECTW, 0, reinterpret_cast<LPARAM>(&tool));
+}
+
+void StripWindow::refresh_tooltip() noexcept {
+    if (tooltip_ == nullptr || wnd_ == nullptr || listener_ == nullptr) return;
+    if (tip_index_ == no_index || tip_index_ != hover_ || dragging_) return;
+    try {
+        std::wstring text;
+        if (!listener_->on_strip_tooltip(hover_, text) || text.empty() || text == tip_text_) return;
+        tip_text_ = std::move(text);
+    } catch (...) {
+        return;
+    }
+    // The text is a callback: this asks for it again and resizes the tip if it is showing.
+    TTTOOLINFOW tool{};
+    tool.cbSize = sizeof(tool);
+    tool.hwnd = wnd_;
+    tool.uId = 1;
+    tool.lpszText = LPSTR_TEXTCALLBACKW;
+    SendMessageW(tooltip_, TTM_UPDATETIPTEXTW, 0, reinterpret_cast<LPARAM>(&tool));
 }
 
 void StripWindow::on_context_menu(LPARAM lp) noexcept {

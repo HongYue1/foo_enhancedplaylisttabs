@@ -172,6 +172,8 @@ constexpr Tip tips[] = {
     {IDC_TITLE_EXAMPLES, L"Pick an example to put it in the field."},
     {IDC_TITLE_HELP, L"Opens foobar2000's title formatting help."},
     {IDC_TITLE_PATTERN, L"Track fields such as %artist% stay empty: a tab has no track."},
+    {IDC_TOOLTIP_PATTERN, L"What a tab shows on hover, with the fields below. $crlf() starts a new line. Empty = the "
+                          L"whole title, only when it is cut off."},
     // Animation
     {IDC_SWITCH_ANIM, L"The active tab's mark slides over to the new tab."},
     {IDC_SWITCH_MS, tip_ms},
@@ -838,6 +840,7 @@ void ConfigureDialog::settings_to_controls() {
     check(IDC_TITLE_NAME, s.title_mode == TitleMode::playlist_name);
     check(IDC_TITLE_FORMAT_MODE, s.title_mode == TitleMode::format);
     ::SetWindowTextW(control(IDC_TITLE_PATTERN), to_wide(s.title_format).c_str());
+    ::SetWindowTextW(control(IDC_TOOLTIP_PATTERN), to_wide(s.tooltip_format).c_str());
     check(IDC_SWITCH_ANIM, s.animations);
     set_number(IDC_SWITCH_MS, s.switch_ms);
 
@@ -1003,6 +1006,7 @@ void ConfigureDialog::settings_from_controls() {
     std::wstring pattern = window_text(control(IDC_TITLE_PATTERN));
     std::erase_if(pattern, [](wchar_t c) { return c == L'\r' || c == L'\n'; });
     s.title_format = to_utf8(pattern);
+    s.tooltip_format = to_utf8(window_text(control(IDC_TOOLTIP_PATTERN)));
     s.animations = checked(IDC_SWITCH_ANIM);
     s.switch_ms = number(IDC_SWITCH_MS);
 
