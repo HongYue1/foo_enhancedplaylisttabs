@@ -299,7 +299,7 @@ property, so it travels with the playlist.
   (`tip_fields_`: counts, lengths, queue) but never relabel. A length that arrives while the tip
   is up updates it (`StripWindow::refresh_tooltip`, TTM_UPDATETIPTEXT). `TTM_SETMAXTIPWIDTH`
   is set so `$crlf()` breaks lines. Forum request (Defender, slim strip without a child).
-- 1.8.1: the dialog went from 300 to 340 DU wide (and pages 218 -> 234 high for the tooltip row):
+- After 1.8.0: the dialog went from 300 to 340 DU wide (and pages 218 -> 234 high for the tooltip row):
   ten page tabs scrolled at 100% scale with the light theme (forum screenshot). Hover page
   columns at 77 and 207.
 
