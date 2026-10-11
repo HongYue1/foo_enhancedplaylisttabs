@@ -1448,6 +1448,7 @@ Limits SwitcherCore::compute_limits() const noexcept {
     strip.along_height = settings_.position == StripPosition::top || settings_.position == StripPosition::bottom;
     strip.thickness = static_cast<unsigned>((std::max)(0, strip_.thickness()));
     strip.has_child = host_child_wnd() != nullptr;
+    strip.host_across = !strip.has_child && host_across(strip.along_height);
     return panel_limits(child_limits_, strip);
 }
 

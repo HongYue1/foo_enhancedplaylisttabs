@@ -31,6 +31,10 @@ struct StripShare {
     //! the maximum along it, as Columns UI's own Playlist tabs report with no child, so a host
     //! that hands out the room a panel may take (Panel Stack Splitter) gives no more.
     bool has_child{true};
+    //! No child, and the host lines panels up across the strip (a Columns UI Row for a top or
+    //! bottom strip): a maximum along the strip would cap every panel beside us, so it stays open
+    //! and the room past the strip shows the background.
+    bool host_across{false};
 };
 
 [[nodiscard]] inline Limits panel_limits(const Limits& child, const StripShare& strip) noexcept {
@@ -43,7 +47,7 @@ struct StripShare {
     unsigned& max_along = strip.along_height ? out.max_height : out.max_width;
     min_along = (std::min)(min_along + strip.thickness, cap);
     if (!strip.has_child) {
-        max_along = min_along;
+        if (!strip.host_across) max_along = min_along;
     } else if (max_along < cap) {
         max_along = (std::min)(max_along + strip.thickness, cap);
     }

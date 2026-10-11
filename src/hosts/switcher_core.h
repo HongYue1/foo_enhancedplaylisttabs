@@ -87,6 +87,11 @@ protected:
     [[nodiscard]] virtual HWND host_child_wnd() const noexcept = 0;
     //! The child's size limits; the default asks its window (WM_GETMINMAXINFO).
     virtual void host_query_limits(Limits& out) noexcept;
+    //! The host lines panels up across the strip (beside a top strip, above a side one).
+    [[nodiscard]] virtual bool host_across(bool strip_along_height) const noexcept {
+        (void)strip_along_height;
+        return false;
+    }
     //! Our size limits changed: tell the parent.
     virtual void host_limits_changed() noexcept = 0;
     //! The element is shown (by the host's rules, not only IsWindowVisible).

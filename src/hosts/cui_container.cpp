@@ -117,6 +117,7 @@ protected:
     bool host_shortcut(WPARAM key) noexcept override;
     service_ptr_t<service_base> host_keep_alive() noexcept override { return this; }
     const wchar_t* host_ui_name() const noexcept override { return L"Columns UI"; }
+    bool host_across(bool strip_along_height) const noexcept override;
     const wchar_t* host_highlight_name() const noexcept override { return L"active item frame"; }
 
 private:
@@ -518,6 +519,22 @@ bool CuiSwitcher::is_point_ours(HWND wnd_point, const POINT& pt_screen, pfc::lis
 
 // ---------------------------------------------------------------------------------------------
 // Appearance and keys.
+
+// Rows and Columns share one host GUID; the direction they resize a panel in is along their own
+// axis (a Row: width). Other hosts (Panel Stack Splitter) keep the fixed size.
+bool CuiSwitcher::host_across(bool strip_along_height) const noexcept {
+    // {FC0ED6EF-DCA2-4679-B7FE-48162DE321FC}: Columns UI's Row and Column.
+    static constexpr GUID splitter_host = {0xfc0ed6ef, 0xdca2, 0x4679, {0xb7, 0xfe, 0x48, 0x16, 0x2d, 0xe3, 0x21, 0xfc}};
+    const HWND self = get_wnd();
+    const auto& parent = get_host();
+    if (self == nullptr || !parent.is_valid()) return false;
+    try {
+        if (parent->get_host_guid() != splitter_host) return false;
+        return parent->is_resize_supported(self) == static_cast<unsigned>(strip_along_height ? uie::size_width : uie::size_height);
+    } catch (...) {
+        return false;
+    }
+}
 
 void CuiSwitcher::host_limits_changed() noexcept {
     const HWND self = get_wnd();

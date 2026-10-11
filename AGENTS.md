@@ -141,6 +141,13 @@ in dark mode (fixed in 1.2.3).
   and the maximum along it, as Columns UI's own Playlist tabs report with no child. Up to 1.4
   the maximum stayed open and Panel Stack Splitter gave the element more height than the strip
   (forum report, not reproduced here: PSS is not installed).
+- Except in a Columns UI Row (Column, for a side strip): there that maximum capped the whole row,
+  squashing every panel beside the element to the strip. Rows and Columns share one host GUID
+  (`{FC0ED6EF-DCA2-4679-B7FE-48162DE321FC}`); `is_resize_supported` gives their axis (Row:
+  `size_width`, Column: `size_height`; checked with a logging build in cui64). `host_across`
+  leaves the maximum open only there; PSS and other hosts keep the fixed size (user: PSS 32-bit OK).
+  Test: layout export, swap the Row GUID for the Column's in the blob, import; remove the child in
+  Preferences (leaf menu: Remove at 60,17 of the popup).
 - `minmax_test`: Windows does not clamp a child to its own `WM_GETMINMAXINFO`, so a taller
   element means the host honoured the limits we reported.
 

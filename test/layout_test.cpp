@@ -249,8 +249,12 @@ int main() {
         check(panel_limits(child, strip).max_height == 228, "a child with a maximum: the strip is added to it");
         child.max_height = 10; // below its own minimum
         check(panel_limits(child, strip).max_height == 78, "a child's maximum below its minimum is raised first");
-        strip.counts = false;
         strip.has_child = false;
+        strip.host_across = true;
+        none = panel_limits(Limits{}, strip);
+        check(none.min_height == 28 && none.max_height == cap, "no child in a Columns UI Row: the height stays open");
+        strip.host_across = false;
+        strip.counts = false;
         check(panel_limits(Limits{}, strip) == Limits{}, "auto-hidden or hidden strip, no child: no limits");
         // A host that gives less room than the strip: the strip is cut to it, never larger.
         check(strip_extent(28, 20) == 20 && strip_extent(28, 0) == 0 && strip_extent(28, -5) == 0 &&
