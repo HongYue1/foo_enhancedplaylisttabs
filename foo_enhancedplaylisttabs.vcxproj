@@ -41,7 +41,7 @@
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.props" />
   <PropertyGroup Label="UserMacros">
     <!-- The sibling SDK folder, not a vendored copy (see README, Building). -->
-    <SdkRoot>..\SDK-2026-09-17</SdkRoot>
+    <SdkRoot>..\SDK-2026-10-01</SdkRoot>
     <!-- The SDK libs expose the /MT flavour as a separate configuration. build.bat builds them. -->
     <SdkLibConfiguration Condition="'$(Configuration)'=='Release'">Release-Static</SdkLibConfiguration>
     <SdkLibConfiguration Condition="'$(Configuration)'=='Debug'">Debug</SdkLibConfiguration>

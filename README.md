@@ -113,7 +113,7 @@ pin left or right (again to unpin), hide the tab, remove the playlist, lock or u
 ## Building
 
 Visual Studio 2022 or later with the C++ desktop workload and ATL, next to these folders:
-`SDK-2026-09-17` (foobar2000 SDK, with the Columns UI SDK inside as `columns_ui-sdk`), `wtl`
+`SDK-2026-10-01` (foobar2000 SDK, with the Columns UI SDK inside as `columns_ui-sdk`), `wtl`
 (WTL 10) and [`fb2k-common`](https://github.com/HongYue1/fb2k-common).
 
 - `build.bat [Release|Debug] [x64|Win32]` builds the DLL.
