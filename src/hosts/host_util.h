@@ -1,13 +1,18 @@
 #pragma once
 
-// Small helpers shared by the element and the switcher core.
+// Small helpers shared by the element, the switcher core and the Configure dialog.
 
 #include <helpers/foobar2000+atl.h>
+
+#include <commdlg.h>
+
+#pragma comment(lib, "comdlg32.lib")
 
 #include <cstdint>
 #include <string>
 
 #include "../model/codec.h"
+#include "../model/colour.h"
 
 namespace ept {
 
@@ -56,6 +61,20 @@ namespace ept {
     if (cp < 0x10000) return std::wstring(1, static_cast<wchar_t>(cp));
     cp -= 0x10000;
     return std::wstring{static_cast<wchar_t>(0xD800 + (cp >> 10)), static_cast<wchar_t>(0xDC00 + (cp & 0x3FF))};
+}
+
+//! The system colour picker, seeded with and writing back 0xAARRGGBB (always opaque). False if
+//! cancelled. Every caller shares its custom colours.
+[[nodiscard]] inline bool pick_colour(HWND owner, std::uint32_t& argb) noexcept {
+    static COLORREF custom[16]{};
+    CHOOSECOLORW dialog{sizeof(dialog)};
+    dialog.hwndOwner = owner;
+    dialog.rgbResult = colour::colorref_from_rgb(argb & 0xFFFFFFu);
+    dialog.lpCustColors = custom;
+    dialog.Flags = CC_FULLOPEN | CC_RGBINIT;
+    if (::ChooseColorW(&dialog) == FALSE) return false;
+    argb = 0xFF000000u | colour::rgb_from_colorref(dialog.rgbResult);
+    return true;
 }
 
 } // namespace ept

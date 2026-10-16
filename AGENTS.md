@@ -78,6 +78,13 @@ splitter dividers match Columns UI. Both ported from Better Tabs.
   selection the outline is only the keyboard focus cue.
 - `test/render_test.cpp` `selection_test` covers the anchor, focus loss and a lost press.
 
+### The strip window
+
+- A host may destroy the element's window and create a new one for the same object.
+  `StripWindow::on_destroyed` (`WM_NCDESTROY`) resets everything that belonged to the old window:
+  timers, mouse tracking, hover, press, drag and click state, fades, the layered style and alpha,
+  the cached backdrop. New per-window state gets reset there too.
+
 ### Keyboard focus
 
 - `CtrlTabFilter` (a `message_filter`) hands Ctrl+Tab to the innermost element around the focus
@@ -109,6 +116,10 @@ splitter dividers match Columns UI. Both ported from Better Tabs.
   (`show_config_popup`, it reads `get_config` after).
 - Long menu lists use `append_long_list` (submenus of 25; dark menus can't draw
   `MF_MENUBARBREAK` columns).
+- The Appearance submenu (`append_style_menu`) is quick access to the main look settings, in the
+  dialog's words (Rotate titles on side strips, Fill strength under Active tab, Show the strip,
+  Show every tab as a chip). A new item there uses the dialog's label; Show a pin on pinned tabs
+  is only there.
 - Confirmations use `run_confirm_dialog` (`MessageBox` can't be dark).
 - Title examples quote literal `(` `)` `[` `]` `,`: `%title% '('%size%')'`.
 
@@ -222,8 +233,12 @@ in dark mode (fixed in 1.2.3).
   text only) adds half its strength, at least half the hover wash, so it shows at any strength.
   `StripWindow::chip_fill` / `chip_fill_alpha`; from `strong_fill` on the title is checked for
   contrast against the chip unless it is a picked colour.
-- Ticking an Automatic box puts its slider (or line width) back on the automatic value
-  (`on_command`).
+- Automatic values: a tooltip states the value, and ticking an Automatic box puts its slider or
+  edit back on it (`on_command`). Both come from the constants in `settings.h` (`auto_fill_*`,
+  `auto_chip_*`, `auto_hover_*`) and `auto_line_width` (2 px: an underline is 2 DIPs, an outline
+  1.5 DIPs rounded); keep them in step.
+- Combo boxes list their items in the enum's order unless a `*_items` table maps them
+  (`item_index`, `pick_item`); "Custom colour" is always the last item.
 - Pages (tab order = `page_ids` / `page_names` in `configure_dialog.cpp`): Strip, Look, Hover,
   Colours, Fonts, Titles, Animation, Playlists, Input, Visibility. Layout rules are the style
   profile at the top of the `.rc`; strengths are all 2-100 %.

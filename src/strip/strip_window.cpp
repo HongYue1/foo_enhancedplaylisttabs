@@ -89,9 +89,10 @@ constexpr float icon_scale = 1.25f;
     return RGB(mix(GetRValue(a), GetRValue(b)), mix(GetGValue(a), GetGValue(b)), mix(GetBValue(a), GetBValue(b)));
 }
 
-//! Settings::active_hover_text == brighten: `c` moved towards white in OKLab, hover_lighten_share of the
-//! way at amount 1 (stays in gamut, keeps the hue). White stays white.
+//! How far a brightened active title moves towards white at full hover.
 constexpr float hover_lighten_share = 0.5f;
+//! HoverText::brighten on the active tab: `c` moved towards white in OKLab, hover_lighten_share of
+//! the way at `amount` 1 (stays in gamut, keeps the hue).
 [[nodiscard]] COLORREF lighten(COLORREF c, float amount) noexcept {
     const std::uint32_t rgb = colour::rgb_from_colorref(c);
     return colour::colorref_from_rgb(colour::mix(rgb, 0xFFFFFFu, hover_lighten_share * amount));
@@ -113,6 +114,17 @@ constexpr float hover_lighten_share = 0.5f;
 [[nodiscard]] int ceil_px(float value) noexcept { return static_cast<int>(std::ceil(value - 0.001f)); }
 
 enum class Edge : std::uint8_t { top, bottom, left, right };
+
+//! The side of a tab that faces the panel.
+[[nodiscard]] Edge panel_edge(StripPosition position) noexcept {
+    switch (position) {
+    case StripPosition::top: return Edge::bottom;
+    case StripPosition::bottom: return Edge::top;
+    case StripPosition::left: return Edge::right;
+    case StripPosition::right: return Edge::left;
+    }
+    return Edge::bottom;
+}
 
 //! `bg` run on past `frame`'s `edge` (the side facing the panel) far enough that its rounded
 //! corners there fall outside `frame`: clipped to `frame`, it is rounded on the far side only.
@@ -174,7 +186,6 @@ constexpr float hover_alpha_dark = 0.08f;
 constexpr float hover_alpha_light = 0.06f;
 constexpr float chip_alpha_dark = static_cast<float>(auto_chip_dark) / 100.0f;
 constexpr float chip_alpha_light = static_cast<float>(auto_chip_light) / 100.0f;
-constexpr float chip_active_alpha = 0.18f;
 constexpr float pill_alpha_dark = static_cast<float>(auto_fill_dark) / 100.0f;
 constexpr float pill_alpha_light = static_cast<float>(auto_fill_light) / 100.0f;
 //! An outlined tab: a faint wash inside a solid accent outline.
@@ -186,7 +197,7 @@ constexpr float selected_alpha_light = 0.14f;
 constexpr float strong_fill = 0.40f;
 constexpr float inactive_text = 0.70f;
 //! The automatic hover outline or underline in the text colour.
-constexpr float hover_line_text_alpha = 0.50f;
+constexpr float hover_line_text_alpha = static_cast<float>(auto_hover_line_opacity) / 100.0f;
 
 } // namespace
 
@@ -198,17 +209,10 @@ StripWindow::~StripWindow() {
 
 bool StripWindow::create(HWND parent, StripListener& listener) noexcept {
     if (wnd_ != nullptr) return true;
-    // QueryPerformanceCounter directly: the strip has no dependency on perf.cpp (render test).
-    LARGE_INTEGER freq{};
-    LARGE_INTEGER t{};
-    QueryPerformanceFrequency(&freq);
-    QueryPerformanceCounter(&t);
-    const auto lap = [&](double& slot) {
-        LARGE_INTEGER now{};
-        QueryPerformanceCounter(&now);
-        if (freq.QuadPart > 0) {
-            slot = static_cast<double>(now.QuadPart - t.QuadPart) * 1000.0 / static_cast<double>(freq.QuadPart);
-        }
+    std::uint64_t t = perf::now();
+    const auto lap = [&t](double& slot) {
+        const std::uint64_t now = perf::now();
+        slot = perf::elapsed_ms(t, now);
         t = now;
     };
     create_timings_ = CreateTimings{};
@@ -228,9 +232,9 @@ bool StripWindow::create(HWND parent, StripListener& listener) noexcept {
     listener_ = &listener;
     cleartype_ = gfx::system_uses_cleartype();
     lap(create_timings_.class_ms);
-    nccreate_qpc_ = 0;
-    create_qpc_ = 0;
-    const long long t_call = t.QuadPart;
+    nccreate_at_ = 0;
+    create_at_ = 0;
+    const std::uint64_t t_call = t;
     // No WM_PARENTNOTIFY up the whole ancestor chain (every container up to the main window):
     // nothing needs it, and it is the one thing a create here sends outside the strip.
     const HWND wnd = CreateWindowExW(WS_EX_NOPARENTNOTIFY, class_name, L"", WS_CHILD | WS_CLIPSIBLINGS | WS_TABSTOP, 0, 0, 0, 0, parent,
@@ -240,13 +244,10 @@ bool StripWindow::create(HWND parent, StripListener& listener) noexcept {
         return false;
     }
     lap(create_timings_.window_ms);
-    if (freq.QuadPart > 0 && nccreate_qpc_ != 0 && create_qpc_ != 0) {
-        const auto ms = [&](long long a, long long b) {
-            return static_cast<double>(b - a) * 1000.0 / static_cast<double>(freq.QuadPart);
-        };
-        create_timings_.to_nccreate_ms = ms(t_call, nccreate_qpc_);
-        create_timings_.to_create_ms = ms(nccreate_qpc_, create_qpc_);
-        create_timings_.after_create_ms = ms(create_qpc_, t.QuadPart);
+    if (nccreate_at_ != 0 && create_at_ != 0) {
+        create_timings_.to_nccreate_ms = perf::elapsed_ms(t_call, nccreate_at_);
+        create_timings_.to_create_ms = perf::elapsed_ms(nccreate_at_, create_at_);
+        create_timings_.after_create_ms = perf::elapsed_ms(create_at_, t);
     }
     dpi_ = dpi_override_ != 0 ? dpi_override_ : gfx::window_dpi(wnd);
     const LRESULT ui_state = SendMessageW(wnd, WM_QUERYUISTATE, 0, 0);
@@ -261,14 +262,39 @@ bool StripWindow::create(HWND parent, StripListener& listener) noexcept {
 }
 
 void StripWindow::destroy() noexcept {
-    stop_theme_fade();
-    stop_hover_fade();
-    theme_ = target_theme_;
-    surface_ = theme_.background;
-    if (wnd_ != nullptr) DestroyWindow(wnd_);
+    if (wnd_ != nullptr) DestroyWindow(wnd_); // WM_NCDESTROY resets the window's state
     wnd_ = nullptr;
     target_.reset();
     brush_.reset();
+}
+
+void StripWindow::on_destroyed() noexcept {
+    // The timers, the mouse tracking, the tooltip (owned by the strip) and the layered style went
+    // with the window; create() can make a new one for this object.
+    wnd_ = nullptr;
+    tooltip_ = nullptr;
+    tip_index_ = no_index;
+    hover_ = no_index;
+    chevron_hover_ = false;
+    tracking_ = false;
+    focused_ = false;
+    focus_return_ = nullptr;
+    press_index_ = no_index;
+    dragging_ = false;
+    clear_on_release_ = false;
+    click_active_armed_ = false;
+    click_pending_index_ = no_index;
+    switching_ = false;
+    switch_from_ = no_index;
+    switch_t_ = 1.0f;
+    hover_fading_ = false;
+    fading_ = false;
+    theme_ = target_theme_;
+    surface_ = theme_.background;
+    layered_ = false;
+    alpha_ = 255;
+    backdrop_stale_ = true;
+    own_dirty_ = RECT{};
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -745,10 +771,7 @@ StripWindow::HoverMark StripWindow::hover_mark(bool active) const noexcept {
 COLORREF StripWindow::hover_colour(const HoverMark& mark) const noexcept {
     switch (mark.colour) {
     case HoverColour::accent: return theme_.accent;
-    case HoverColour::custom: {
-        const std::uint32_t c = mark.argb;
-        return RGB((c >> 16) & 0xFFu, (c >> 8) & 0xFFu, c & 0xFFu);
-    }
+    case HoverColour::custom: return argb_colour(mark.argb);
     case HoverColour::text: break;
     }
     return theme_.text;
@@ -785,10 +808,7 @@ float StripWindow::active_fill_alpha() const noexcept {
     // The outlined tab keeps its faint fill: a strong one would make it a plain tab.
     if (settings_.indicator == Indicator::tab_outline) return outline_fill_alpha;
     if (theme_.active_fill > 0.0f) return theme_.active_fill;
-    if (settings_.indicator == Indicator::pill || settings_.indicator == Indicator::tab) {
-        return theme_.dark ? pill_alpha_dark : pill_alpha_light;
-    }
-    return chip_active_alpha;
+    return theme_.dark ? pill_alpha_dark : pill_alpha_light;
 }
 
 COLORREF StripWindow::chip_fill() const noexcept {
@@ -838,14 +858,8 @@ void StripWindow::draw_switch_indicator() noexcept {
         bg.right -= ix;
         bg.top += iy;
         bg.bottom -= iy;
-        // The side facing the panel, in client pixels (rotated tabs face it too).
-        Edge edge = Edge::bottom;
-        switch (settings_.position) {
-        case StripPosition::top: edge = Edge::bottom; break;
-        case StripPosition::bottom: edge = Edge::top; break;
-        case StripPosition::left: edge = Edge::right; break;
-        case StripPosition::right: edge = Edge::left; break;
-        }
+        // In client pixels (rotated tabs face the panel too).
+        const Edge edge = panel_edge(settings_.position);
         const float alpha = active_fill_alpha();
         brush_->SetColor(d2d_colour(accent_fill_colour(theme_, alpha), alpha));
         fill_shape(target_.get(), brush_.get(), nullptr, bg, r, edge, tab_shape(), radius, 0.0f);
@@ -1391,13 +1405,7 @@ void StripWindow::draw_tab(std::size_t index) noexcept {
     // Work in a "frame": the tab as a horizontal rectangle, plus the edge facing the panel.
     D2D1_RECT_F f{static_cast<float>(r.left), static_cast<float>(r.top), static_cast<float>(r.right),
                   static_cast<float>(r.bottom)};
-    Edge edge = Edge::bottom;
-    switch (settings_.position) {
-    case StripPosition::top: edge = Edge::bottom; break;
-    case StripPosition::bottom: edge = Edge::top; break;
-    case StripPosition::left: edge = Edge::right; break;
-    case StripPosition::right: edge = Edge::left; break;
-    }
+    Edge edge = panel_edge(settings_.position);
     const bool turn = rotated();
     if (turn) {
         const float cx = (f.left + f.right) / 2.0f;
@@ -1441,10 +1449,8 @@ void StripWindow::draw_tab(std::size_t index) noexcept {
     if (accent_fill) {
         fill = theme_.accent;
         fill_alpha = active_fill_alpha();
-        // A faint outlined tab still shows the pointer.
-        if (settings_.indicator == Indicator::tab_outline && theme_.active_fill <= 0.0f) {
-            fill_alpha += hover_alpha * active_hover;
-        }
+        // The outlined tab's faint fill still shows the pointer.
+        if (settings_.indicator == Indicator::tab_outline) fill_alpha += hover_alpha * active_hover;
     } else if (item.selected && !(active && switching_)) {
         // Not while the indicator slides onto it: the slide carries the active look.
         fill = theme_.accent;
@@ -1644,9 +1650,7 @@ const std::uint8_t* StripWindow::pixels(int& width, int& height, int& stride) co
 LRESULT CALLBACK StripWindow::window_proc(HWND wnd, UINT msg, WPARAM wp, LPARAM lp) noexcept {
     if (msg == WM_NCCREATE) {
         auto* self = static_cast<StripWindow*>(reinterpret_cast<CREATESTRUCTW*>(lp)->lpCreateParams);
-        LARGE_INTEGER now{};
-        QueryPerformanceCounter(&now);
-        self->nccreate_qpc_ = now.QuadPart;
+        self->nccreate_at_ = perf::now();
         self->wnd_ = wnd;
         SetWindowLongPtrW(wnd, GWLP_USERDATA, reinterpret_cast<LONG_PTR>(self));
     }
@@ -1654,13 +1658,7 @@ LRESULT CALLBACK StripWindow::window_proc(HWND wnd, UINT msg, WPARAM wp, LPARAM 
     if (self == nullptr) return DefWindowProcW(wnd, msg, wp, lp);
     if (msg == WM_NCDESTROY) {
         SetWindowLongPtrW(wnd, GWLP_USERDATA, 0);
-        self->wnd_ = nullptr;
-        self->tooltip_ = nullptr; // owned by the strip, so already gone
-        self->tip_index_ = no_index;
-        self->press_index_ = no_index;
-        self->dragging_ = false;
-        self->switching_ = false; // the timer died with the window
-        self->switch_from_ = no_index;
+        self->on_destroyed();
         return DefWindowProcW(wnd, msg, wp, lp);
     }
     return self->on_message(msg, wp, lp);
@@ -1699,12 +1697,7 @@ LRESULT StripWindow::on_message(UINT msg, WPARAM wp, LPARAM lp) noexcept {
     // Registered message, not a case label: checked first, one comparison when nobody asks.
     if (fbc::describe::is_request(msg, lp)) return describe(lp);
     switch (msg) {
-    case WM_CREATE: {
-        LARGE_INTEGER now{};
-        QueryPerformanceCounter(&now);
-        create_qpc_ = now.QuadPart;
-        return 0;
-    }
+    case WM_CREATE: create_at_ = perf::now(); return 0;
     case WM_ERASEBKGND:
         // Only others ask for an erase (the strip invalidates without one): a host repainting
         // its background (RedrawWindow with RDW_ERASE). A transparent strip fetches it again.
@@ -1897,8 +1890,8 @@ void StripWindow::check_dpi() noexcept {
     const bool first = dpi_ == 0;
     dpi_ = dpi;
     // The WM_SIZE sent inside CreateWindowExW arrives before create() has set the DPI. That is not
-    // a change: create() builds everything next. Notifying here made the container refresh its
-    // font against a cold DirectWrite and relayout the host mid-create (153 ms, seen in Better Tabs).
+    // a change: create() builds everything next. Notifying here would make the container refresh
+    // its font against a cold DirectWrite and lay out the host again mid-create.
     if (first) return;
     rebuild_text_format();
     rebuild_items();
@@ -1916,8 +1909,7 @@ void StripWindow::set_dpi_override(unsigned dpi) noexcept {
 void StripWindow::on_size(int width, int height) noexcept {
     // Record the size first: check_dpi() can make the host move us again, and that nested
     // WM_SIZE must not be overwritten by this older one afterwards. Then trust the window over
-    // the message: inside Better Tabs the strip once kept 0 x 0 while its window was 2307 x 44
-    // (no tabs, no back buffer).
+    // the message: with nested moves, the size in this message can already be stale.
     const bool changed = width != width_ || height != height_;
     width_ = width;
     height_ = height;

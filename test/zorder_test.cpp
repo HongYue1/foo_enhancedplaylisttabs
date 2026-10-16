@@ -1,6 +1,6 @@
 // What can bury the auto-hide hot zone (a layered child at alpha 1) under a sibling panel, and
 // what tells the parent about it? Fullscreen visualisations reparent their window to a popup and
-// back with SetParent; afterwards the strip could no longer be revealed (0.5.3).
+// back with SetParent, which buried the hot zone: the strip could no longer be revealed.
 // Needs a Windows 8+ manifest (compat.manifest): without one, layered children fail to create.
 #include <windows.h>
 #include <cstdio>

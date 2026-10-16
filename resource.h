@@ -110,13 +110,19 @@
 #define IDC_CHIP_STRENGTH_VALUE 1218
 #define IDC_LINE_WIDTH_AUTO 1219
 
-// Fonts. The fallback rows are consecutive: text, Select and Clear of row 1, 2, 3.
+// Fonts. Each column of the fallback rows is consecutive (the code adds the row).
 #define IDC_FONT_TEXT 1200
 #define IDC_FONT_PICK 1201
 #define IDC_FONT_CLEAR 1202
-#define IDC_FALLBACK_TEXT 1203
-#define IDC_FALLBACK_PICK 1206
-#define IDC_FALLBACK_CLEAR 1209
+#define IDC_FALLBACK_TEXT1 1203
+#define IDC_FALLBACK_TEXT2 1204
+#define IDC_FALLBACK_TEXT3 1205
+#define IDC_FALLBACK_PICK1 1206
+#define IDC_FALLBACK_PICK2 1207
+#define IDC_FALLBACK_PICK3 1208
+#define IDC_FALLBACK_CLEAR1 1209
+#define IDC_FALLBACK_CLEAR2 1210
+#define IDC_FALLBACK_CLEAR3 1211
 
 // Hover
 #define IDC_HOVER_STYLE 1300

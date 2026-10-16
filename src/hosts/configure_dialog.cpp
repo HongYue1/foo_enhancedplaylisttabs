@@ -8,11 +8,9 @@
 #include <helpers/atl-misc.h>
 
 #include <commctrl.h>
-#include <commdlg.h>
 #include <shellapi.h>
 
 #pragma comment(lib, "comctl32.lib")
-#pragma comment(lib, "comdlg32.lib")
 #pragma comment(lib, "shell32.lib")
 
 #include <algorithm>
@@ -26,7 +24,9 @@
 #include "fbc/fonts.h"
 
 #include "../../resource.h"
+#include "../model/colour.h"
 #include "configure_dialog.h"
+#include "host_util.h"
 
 #include "../playlists/playlist_title.h"
 
@@ -42,8 +42,26 @@ constexpr int page_ids[page_count] = {IDD_PAGE_STRIP,     IDD_PAGE_LOOK,      ID
 constexpr const wchar_t* page_names[page_count] = {L"Strip",     L"Look",  L"Hover",     L"Colours",
                                                    L"Fonts",     L"Titles", L"Animation", L"Playlists",
                                                    L"Input",     L"Visibility"};
-//! Where an automatic line width's edit rests (the width it draws at 96 DPI).
-[[nodiscard]] int auto_line_width(bool outline) noexcept { return outline ? 1 : 2; }
+//! The value behind each item of a combo box whose items are not in the enum's order.
+constexpr StripVisibility visibility_items[] = {StripVisibility::always, StripVisibility::two_or_more,
+                                                StripVisibility::auto_hide, StripVisibility::never};
+constexpr Indicator indicator_items[] = {Indicator::underline, Indicator::pill, Indicator::tab, Indicator::tab_outline,
+                                         Indicator::none};
+constexpr AccentSource accent_items[] = {AccentSource::selection, AccentSource::highlight, AccentSource::cover,
+                                         AccentSource::custom};
+constexpr StripBackground background_items[] = {StripBackground::theme, StripBackground::accent_tint,
+                                                StripBackground::custom};
+//! The item of `items` that is `value` (the first one if none is).
+template <typename T, std::size_t N>
+[[nodiscard]] int item_index(const T (&items)[N], T value) noexcept {
+    for (std::size_t i = 0; i < N; ++i) {
+        if (items[i] == value) return static_cast<int>(i);
+    }
+    return 0;
+}
+//! Where an automatic line width's edit rests: what both lines draw at 96 DPI (an underline is
+//! 2 DIPs, an outline 1.5 DIPs rounded to whole pixels).
+constexpr int auto_line_width = 2;
 //! Where a hover fill slider rests while Automatic is ticked.
 [[nodiscard]] int auto_hover_fill_for(bool active) noexcept { return active ? auto_active_hover_fill : auto_hover_fill; }
 
@@ -56,13 +74,16 @@ struct Tip {
 };
 constexpr const wchar_t* tip_hex = L"The colour as hex RRGGBB. Click the swatch to pick one.";
 constexpr const wchar_t* tip_swatch = L"Pick a colour.";
-constexpr const wchar_t* tip_hover_colour = L"Text colour: a neutral wash. Accent colour: the accent from the Colours page.";
+constexpr const wchar_t* tip_colour_choice =
+    L"Text colour: a neutral wash. Accent colour: the accent from the Colours page.";
+constexpr const wchar_t* tip_hover_text_hex =
+    L"Used with Title: Custom colour. The colour as hex RRGGBB. Click the swatch to pick one.";
 constexpr const wchar_t* tip_hover_fill_auto = L"Automatic: 18% on the other tabs, 23% on the active tab.";
 constexpr const wchar_t* tip_hover_fill = L"How strong the hover fill is (2-100%).";
-constexpr const wchar_t* tip_hover_width_auto = L"Automatic: 2 px for an underline, thinner for an outline.";
+constexpr const wchar_t* tip_hover_width_auto = L"Automatic: 2 px for an underline, 1.5 px for an outline.";
 constexpr const wchar_t* tip_hover_width = L"Width of the outline or underline (1-8 px).";
-constexpr const wchar_t* tip_hover_line_auto = L"Automatic: 50% in the text colour, full strength in any other colour.";
-constexpr const wchar_t* tip_hover_line = L"How strong the outline or underline is (10-100%).";
+constexpr const wchar_t* tip_hover_line_auto = L"Automatic: 50% in the text colour, 100% in any other colour.";
+constexpr const wchar_t* tip_hover_line = L"Opacity of the outline or underline (10-100%).";
 constexpr const wchar_t* tip_action =
     L"Show now playing: the playing track if it plays from this playlist, else the focused one. "
     L"Jump to the first / last track: the first, or the last when already on the first. "
@@ -93,7 +114,7 @@ constexpr Tip tips[] = {
     {IDC_SPACING, L"Gap between two tabs (0-64 px)."},
     // Look
     {IDC_CHIP, L"Every tab gets a rounded fill of its own; the active tab's stands out."},
-    {IDC_CHIP_COLOUR, L"Text colour: a neutral wash. Accent colour: the accent from the Colours page."},
+    {IDC_CHIP_COLOUR, tip_colour_choice},
     {IDC_CHIP_HEX, tip_hex},
     {IDC_CHIP_SWATCH, tip_swatch},
     {IDC_CHIP_STRENGTH_AUTO, L"Automatic: 18% on a dark strip, 15% on a light one."},
@@ -101,24 +122,24 @@ constexpr Tip tips[] = {
     {IDC_RADIUS, L"Rounding of chips, pills and tabs (0-32 px)."},
     {IDC_INDICATOR, L"How the active tab is marked. Tab: a fill joined to the panel. Outlined tab: the same shape, "
                     L"outlined. Text only: just its brighter title."},
-    {IDC_LINE_WIDTH_AUTO, L"Automatic: 2 px for the underline, thinner for the outline."},
+    {IDC_LINE_WIDTH_AUTO, L"Automatic: 2 px for the underline, 1.5 px for the outline."},
     {IDC_LINE_WIDTH, L"Width of the underline or the outline (1-8 px)."},
     {IDC_STRENGTH_AUTO, L"Automatic: 50% on a dark strip, 40% on a light one."},
-    {IDC_STRENGTH, L"How strong the active tab's pill, tab or chip fill is (2-100%)."},
+    {IDC_STRENGTH, L"How strong the active tab's fill is with Pill or Tab (2-100%)."},
     // Hover
     {IDC_HOVER_STYLE, L"How a tab is marked while the pointer is over it."},
     {IDC_HOVER_ACTIVE_STYLE, L"How the active tab is marked while the pointer is over it. Plain wash: a faint "
                              L"wash in the text colour."},
-    {IDC_HOVER_COLOUR, tip_hover_colour},
-    {IDC_HOVER_ACTIVE_COLOUR, tip_hover_colour},
+    {IDC_HOVER_COLOUR, tip_colour_choice},
+    {IDC_HOVER_ACTIVE_COLOUR, tip_colour_choice},
     {IDC_HOVER_HEX, tip_hex},
     {IDC_HOVER_ACTIVE_HEX, tip_hex},
     {IDC_HOVER_SWATCH, tip_swatch},
     {IDC_HOVER_ACTIVE_SWATCH, tip_swatch},
     {IDC_HOVER_TEXT, L"What the title does on hover. Brightens: takes the active tab's text colour."},
     {IDC_HOVER_ACTIVE_TEXT, L"What the active tab's title does on hover. Brightens: gets lighter, towards white."},
-    {IDC_HOVER_TEXT_HEX, L"Used with Title: Custom colour. Hex RRGGBB; click the swatch to pick one."},
-    {IDC_HOVER_ACTIVE_TEXT_HEX, L"Used with Title: Custom colour. Hex RRGGBB; click the swatch to pick one."},
+    {IDC_HOVER_TEXT_HEX, tip_hover_text_hex},
+    {IDC_HOVER_ACTIVE_TEXT_HEX, tip_hover_text_hex},
     {IDC_HOVER_TEXT_SWATCH, tip_swatch},
     {IDC_HOVER_ACTIVE_TEXT_SWATCH, tip_swatch},
     {IDC_HOVER_FILL_AUTO, tip_hover_fill_auto},
@@ -158,15 +179,15 @@ constexpr Tip tips[] = {
     {IDC_FONT_TEXT, tip_font},
     {IDC_FONT_PICK, tip_font},
     {IDC_FONT_CLEAR, tip_font},
-    {IDC_FALLBACK_TEXT, tip_fallback},
-    {IDC_FALLBACK_TEXT + 1, tip_fallback},
-    {IDC_FALLBACK_TEXT + 2, tip_fallback},
-    {IDC_FALLBACK_PICK, tip_fallback},
-    {IDC_FALLBACK_PICK + 1, tip_fallback},
-    {IDC_FALLBACK_PICK + 2, tip_fallback},
-    {IDC_FALLBACK_CLEAR, tip_fallback},
-    {IDC_FALLBACK_CLEAR + 1, tip_fallback},
-    {IDC_FALLBACK_CLEAR + 2, tip_fallback},
+    {IDC_FALLBACK_TEXT1, tip_fallback},
+    {IDC_FALLBACK_TEXT2, tip_fallback},
+    {IDC_FALLBACK_TEXT3, tip_fallback},
+    {IDC_FALLBACK_PICK1, tip_fallback},
+    {IDC_FALLBACK_PICK2, tip_fallback},
+    {IDC_FALLBACK_PICK3, tip_fallback},
+    {IDC_FALLBACK_CLEAR1, tip_fallback},
+    {IDC_FALLBACK_CLEAR2, tip_fallback},
+    {IDC_FALLBACK_CLEAR3, tip_fallback},
     // Titles
     {IDC_TITLE_FORMAT_MODE, L"Build the titles from the fields below with foobar2000's title formatting."},
     {IDC_TITLE_EXAMPLES, L"Pick an example to put it in the field."},
@@ -197,8 +218,8 @@ constexpr Tip tips[] = {
     {IDC_WHEEL, L"The wheel over the strip switches to the next or previous tab."},
     {IDC_DRAG, L"Dragging a tab moves the playlist itself."},
     {IDC_DBLCLICK_NEW, L"A double-click on empty strip space makes a new playlist and switches to it."},
-    {IDC_CTRL_TAB, L"Ctrl+Tab and Ctrl+Shift+Tab, while the keyboard focus is inside the panel; a click on the "
-                   L"strip brings it there."},
+    {IDC_CTRL_TAB, L"Ctrl+Tab and Ctrl+Shift+Tab switch to the next and the previous tab while the keyboard focus is "
+                   L"inside the panel; a click on the strip brings it there."},
     // Visibility
     {IDC_VISIBILITY, L"Auto-hide: the strip shows when the pointer reaches its edge of the panel."},
     {IDC_AH_MODE, L"Over the panel: the strip covers the edge of the panel. Push the panel aside: the panel makes room."},
@@ -206,20 +227,8 @@ constexpr Tip tips[] = {
     {IDC_AH_REVEAL, L"Time in the hot zone before the strip shows (0-5000 ms)."},
     {IDC_AH_HIDE, L"Time after the pointer leaves before the strip hides (0-5000 ms). It also stays while its menu is "
                   L"open, during a drag and while it has the keyboard focus."},
-    {IDC_AH_LINGER, L"How long the strip stays at least after a tab switch (0-5000 ms)."},
+    {IDC_AH_LINGER, L"The strip stays at least this long after a tab switch (0-5000 ms)."},
 };
-
-//! A control by id on the dialog itself or on one of its pages (ids are unique across pages).
-[[nodiscard]] HWND find_control(HWND dialog, int control) {
-    if (HWND direct = ::GetDlgItem(dialog, control)) return direct;
-    for (HWND w = ::GetWindow(dialog, GW_CHILD); w != nullptr; w = ::GetWindow(w, GW_HWNDNEXT)) {
-        wchar_t name[16]{};
-        ::GetClassNameW(w, name, 16);
-        if (wcscmp(name, L"#32770") != 0) continue;
-        if (HWND found = ::GetDlgItem(w, control)) return found;
-    }
-    return nullptr;
-}
 
 [[nodiscard]] std::wstring window_text(HWND wnd) {
     if (wnd == nullptr) return {};
@@ -230,32 +239,24 @@ constexpr Tip tips[] = {
     return text;
 }
 
-[[nodiscard]] std::string to_utf8(const std::wstring& text) {
-    return std::string(pfc::stringcvt::string_utf8_from_wide(text.c_str()).get_ptr());
+//! A hex digit's value, or -1.
+[[nodiscard]] int hex_digit(wchar_t c) noexcept {
+    if (c >= L'0' && c <= L'9') return c - L'0';
+    if (c >= L'a' && c <= L'f') return c - L'a' + 10;
+    if (c >= L'A' && c <= L'F') return c - L'A' + 10;
+    return -1;
 }
 
-[[nodiscard]] std::wstring to_wide(const std::string& text) {
-    return std::wstring(pfc::stringcvt::string_wide_from_utf8(text.c_str(), text.size()).get_ptr());
-}
-
-//! Six hex digits. Junk reads as the fallback rather than as black, which would look like a bug.
+//! Up to six hex digits, an optional # first. Junk reads as the fallback rather than as black,
+//! which would look like a bug.
 [[nodiscard]] std::uint32_t parse_rgb(const std::wstring& text, std::uint32_t fallback) {
-    std::wstring t = text;
-    if (!t.empty() && t.front() == L'#') t.erase(0, 1);
-    if (t.empty() || t.size() > 6) return fallback;
+    const std::size_t first = !text.empty() && text.front() == L'#' ? 1 : 0;
+    if (text.size() == first || text.size() - first > 6) return fallback;
     std::uint32_t value = 0;
-    for (const wchar_t c : t) {
-        std::uint32_t digit = 0;
-        if (c >= L'0' && c <= L'9') {
-            digit = static_cast<std::uint32_t>(c - L'0');
-        } else if (c >= L'a' && c <= L'f') {
-            digit = static_cast<std::uint32_t>(c - L'a' + 10);
-        } else if (c >= L'A' && c <= L'F') {
-            digit = static_cast<std::uint32_t>(c - L'A' + 10);
-        } else {
-            return fallback;
-        }
-        value = (value << 4) | digit;
+    for (std::size_t i = first; i < text.size(); ++i) {
+        const int digit = hex_digit(text[i]);
+        if (digit < 0) return fallback;
+        value = (value << 4) | static_cast<std::uint32_t>(digit);
     }
     return 0xFF000000u | value;
 }
@@ -264,10 +265,6 @@ constexpr Tip tips[] = {
     wchar_t buffer[8]{};
     std::swprintf(buffer, 8, L"%06X", argb & 0xFFFFFFu);
     return buffer;
-}
-
-[[nodiscard]] COLORREF colorref(std::uint32_t argb) {
-    return RGB((argb >> 16) & 0xFF, (argb >> 8) & 0xFF, argb & 0xFF);
 }
 
 //! Text fields get some room before the first character (fb2k-common).
@@ -372,22 +369,6 @@ void draw_swatch(const DRAWITEMSTRUCT& item, COLORREF colour) {
     }
 }
 
-//! The system colour picker; false if cancelled.
-[[nodiscard]] bool pick_colour(HWND owner, std::uint32_t& argb) {
-    static COLORREF custom[16]{};
-    CHOOSECOLORW dialog{};
-    dialog.lStructSize = sizeof dialog;
-    dialog.hwndOwner = owner;
-    dialog.rgbResult = colorref(argb);
-    dialog.lpCustColors = custom;
-    dialog.Flags = CC_FULLOPEN | CC_RGBINIT;
-    if (!::ChooseColorW(&dialog)) return false;
-    const COLORREF c = dialog.rgbResult;
-    argb = 0xFF000000u | (static_cast<std::uint32_t>(GetRValue(c)) << 16) |
-           (static_cast<std::uint32_t>(GetGValue(c)) << 8) | GetBValue(c);
-    return true;
-}
-
 //! A colour swatch button, its hex field and the setting they edit.
 struct Swatch {
     int button;
@@ -449,10 +430,6 @@ constexpr HoverSet hover_sets[] = {
      true},
 };
 //! The style list: the HoverStyle values in order; the active tab's starts with its plain wash.
-//! The hover mark's line is an outline (else an underline).
-[[nodiscard]] bool hover_outline(HoverStyle style) noexcept {
-    return style == HoverStyle::outline || style == HoverStyle::outline_fill;
-}
 [[nodiscard]] int hover_style_index(HoverStyle style, bool active) noexcept {
     if (!active) return style == HoverStyle::plain ? 0 : static_cast<int>(style);
     return style == HoverStyle::plain ? 0 : static_cast<int>(style) + 1;
@@ -523,7 +500,14 @@ private:
     static INT_PTR CALLBACK page_proc(HWND, UINT, WPARAM, LPARAM);
     void show_page(int page);
 
-    [[nodiscard]] HWND control(int id) const { return find_control(m_hWnd, id); }
+    //! A control on the dialog itself or on one of its pages (ids are unique across pages).
+    [[nodiscard]] HWND control(int id) const {
+        if (const HWND direct = ::GetDlgItem(m_hWnd, id)) return direct;
+        for (const HWND page : pages_) {
+            if (const HWND found = page != nullptr ? ::GetDlgItem(page, id) : nullptr) return found;
+        }
+        return nullptr;
+    }
     [[nodiscard]] bool checked(int id) const {
         return ::SendMessageW(control(id), BM_GETCHECK, 0, 0) == BST_CHECKED;
     }
@@ -595,7 +579,7 @@ private:
     void hover_values(const HoverSet& set);
     void hover_enabled(const HoverSet& set);
     HWND pages_[page_count]{};
-    HWND tips_{};
+    HWND tips_{nullptr};
     // Must be a member: it hooks the dialog and its controls for the lifetime of both.
     fb2k::CDarkModeHooks dark_;
 };
@@ -621,7 +605,7 @@ BOOL ConfigureDialog::on_init_dialog(CWindow, LPARAM) {
         show_page(0);
     }
     fill_combo(control(IDC_POSITION), {L"Top", L"Bottom", L"Left", L"Right"});
-    // Order matters: visibility_order below.
+    // Order matters: visibility_items.
     fill_combo(control(IDC_VISIBILITY), {L"Always", L"Only with two or more playlists", L"Auto-hide", L"Never"});
     // Order matters: RevealMode and ShowHideAnimation, one for one.
     fill_combo(control(IDC_AH_MODE), {L"Over the panel (fastest)", L"Push the panel aside"});
@@ -630,8 +614,8 @@ BOOL ConfigureDialog::on_init_dialog(CWindow, LPARAM) {
     fill_combo(control(IDC_ALIGN), {L"Start", L"Centre", L"End"});
     // Order matters: ChevronPosition.
     fill_combo(control(IDC_CHEVRON), {L"At the end of the strip", L"At the start of the strip"});
-    // Order matters: Indicator, one for one.
-    fill_combo(control(IDC_INDICATOR), {L"Underline", L"Pill", L"Text only", L"Tab", L"Outlined tab"});
+    // Order matters: indicator_items.
+    fill_combo(control(IDC_INDICATOR), {L"Underline", L"Pill", L"Tab", L"Outlined tab", L"Text only"});
     // Order matters: ChipColour.
     fill_combo(control(IDC_CHIP_COLOUR), {L"Text colour", L"Accent colour", L"Custom colour"});
     for (const HoverSet& set : hover_sets) {
@@ -640,13 +624,13 @@ BOOL ConfigureDialog::on_init_dialog(CWindow, LPARAM) {
         fill_combo(control(set.ids.colour), {L"Text colour", L"Accent colour", L"Custom colour"});
         fill_combo(control(set.ids.text), {L"Brightens", L"Stays as it is", L"Takes the hover colour", L"Custom colour"});
     }
-    // Order matters: AccentSource and StripBackground, one for one.
+    // Order matters: accent_items and background_items.
     const std::wstring theme_accent = state_.ui_name + L" selection colour";
     const std::wstring theme_background = state_.ui_name + L" background";
     const std::wstring theme_highlight = state_.ui_name + L" " + state_.highlight_name;
     fill_combo(control(IDC_ACCENT_SOURCE),
-               {theme_accent.c_str(), L"Custom colour", L"From the playing cover", theme_highlight.c_str()});
-    fill_combo(control(IDC_BACKGROUND), {theme_background.c_str(), L"Custom colour", L"Tinted with the accent"});
+               {theme_accent.c_str(), theme_highlight.c_str(), L"From the playing cover", L"Custom colour"});
+    fill_combo(control(IDC_BACKGROUND), {theme_background.c_str(), L"Tinted with the accent", L"Custom colour"});
     // Order matters: TabAction, one for one. The pin wording follows the strip's side, as in the
     // tab menu.
     const StripPosition position = state_.settings.position;
@@ -781,10 +765,7 @@ void ConfigureDialog::settings_to_controls() {
     loading_ = true;
     const Settings& s = state_.settings;
     select(IDC_POSITION, static_cast<int>(s.position));
-    select(IDC_VISIBILITY, s.visibility == StripVisibility::always        ? 0
-                           : s.visibility == StripVisibility::two_or_more ? 1
-                           : s.visibility == StripVisibility::auto_hide   ? 2
-                                                                          : 3);
+    select(IDC_VISIBILITY, item_index(visibility_items, s.visibility));
     check(IDC_ROTATE, s.side_text == SideText::rotated);
     select(IDC_SIZING, static_cast<int>(s.sizing));
     select(IDC_ALIGN, static_cast<int>(s.align));
@@ -796,9 +777,9 @@ void ConfigureDialog::settings_to_controls() {
     set_number(IDC_THICKNESS, s.thickness);
     set_number(IDC_MAX_WIDTH, s.max_tab_width);
 
-    select(IDC_INDICATOR, static_cast<int>(s.indicator));
+    select(IDC_INDICATOR, item_index(indicator_items, s.indicator));
     check(IDC_LINE_WIDTH_AUTO, s.line_width == 0);
-    set_number(IDC_LINE_WIDTH, s.line_width != 0 ? s.line_width : auto_line_width(false));
+    set_number(IDC_LINE_WIDTH, s.line_width != 0 ? s.line_width : auto_line_width);
     check(IDC_CHIP, s.chip);
     select(IDC_CHIP_COLOUR, static_cast<int>(s.chip_colour));
     ::SetWindowTextW(control(IDC_CHIP_HEX), format_rgb(s.chip_argb).c_str());
@@ -809,9 +790,9 @@ void ConfigureDialog::settings_to_controls() {
     check(IDC_STRENGTH_AUTO, s.accent_strength == 0);
     set_slider(IDC_STRENGTH, 2, 100,
                s.accent_strength != 0 ? s.accent_strength : (state_.dark ? auto_fill_dark : auto_fill_light));
-    select(IDC_ACCENT_SOURCE, static_cast<int>(s.accent_source));
+    select(IDC_ACCENT_SOURCE, item_index(accent_items, s.accent_source));
     ::SetWindowTextW(control(IDC_ACCENT_HEX), format_rgb(s.accent_argb).c_str());
-    select(IDC_BACKGROUND, static_cast<int>(s.strip_background));
+    select(IDC_BACKGROUND, item_index(background_items, s.strip_background));
     ::SetWindowTextW(control(IDC_BACKGROUND_HEX), format_rgb(s.background_argb).c_str());
     set_slider(IDC_TINT, 2, 100, s.tint_strength);
     check(IDC_TRANSPARENT, s.transparent_background);
@@ -840,8 +821,8 @@ void ConfigureDialog::settings_to_controls() {
 
     check(IDC_TITLE_NAME, s.title_mode == TitleMode::playlist_name);
     check(IDC_TITLE_FORMAT_MODE, s.title_mode == TitleMode::format);
-    ::SetWindowTextW(control(IDC_TITLE_PATTERN), to_wide(s.title_format).c_str());
-    ::SetWindowTextW(control(IDC_TOOLTIP_PATTERN), to_wide(s.tooltip_format).c_str());
+    ::SetWindowTextW(control(IDC_TITLE_PATTERN), fbc::fonts::widen(s.title_format).c_str());
+    ::SetWindowTextW(control(IDC_TOOLTIP_PATTERN), fbc::fonts::widen(s.tooltip_format).c_str());
     check(IDC_SWITCH_ANIM, s.animations);
     set_number(IDC_SWITCH_MS, s.switch_ms);
 
@@ -881,9 +862,9 @@ void ConfigureDialog::hover_to_controls(const HoverSet& set) {
     check(id.fill_auto, s.*h.fill_strength == 0);
     set_slider(id.fill, 2, 100, s.*h.fill_strength == 0 ? auto_hover_fill_for(set.active) : s.*h.fill_strength);
     check(id.line_width_auto, s.*h.line_width == 0);
-    set_number(id.line_width, s.*h.line_width != 0 ? s.*h.line_width : auto_line_width(hover_outline(s.*h.style)));
+    set_number(id.line_width, s.*h.line_width != 0 ? s.*h.line_width : auto_line_width);
     check(id.line_auto, s.*h.line_opacity == 0);
-    set_slider(id.line, 10, 100, s.*h.line_opacity == 0 ? 50 : s.*h.line_opacity);
+    set_slider(id.line, 10, 100, s.*h.line_opacity == 0 ? auto_hover_line_opacity : s.*h.line_opacity);
     // "Brightens" is the full text colour for the others, lighter (towards white) for the active tab.
     select(id.text, static_cast<int>(s.*h.text));
     ::SetWindowTextW(control(id.text_hex), format_rgb(s.*h.text_argb).c_str());
@@ -945,12 +926,14 @@ void ConfigureDialog::settings_from_controls() {
         const LRESULT index = selection(id);
         if (index != CB_ERR) field = static_cast<std::remove_reference_t<decltype(field)>>(index);
     };
+    const auto pick_item = [&](int id, const auto& items, auto& field) {
+        const LRESULT index = selection(id);
+        if (index >= 0 && static_cast<std::size_t>(index) < std::size(items)) {
+            field = items[static_cast<std::size_t>(index)];
+        }
+    };
     pick(IDC_POSITION, s.position);
-    if (const LRESULT v = selection(IDC_VISIBILITY); v != CB_ERR) {
-        constexpr StripVisibility visibility_order[] = {StripVisibility::always, StripVisibility::two_or_more,
-                                                        StripVisibility::auto_hide, StripVisibility::never};
-        if (v >= 0 && v < 4) s.visibility = visibility_order[v];
-    }
+    pick_item(IDC_VISIBILITY, visibility_items, s.visibility);
     s.side_text = checked(IDC_ROTATE) ? SideText::rotated : SideText::horizontal;
     pick(IDC_SIZING, s.sizing);
     pick(IDC_ALIGN, s.align);
@@ -962,7 +945,7 @@ void ConfigureDialog::settings_from_controls() {
     s.thickness = number(IDC_THICKNESS);
     s.max_tab_width = number(IDC_MAX_WIDTH);
 
-    pick(IDC_INDICATOR, s.indicator);
+    pick_item(IDC_INDICATOR, indicator_items, s.indicator);
     s.line_width = checked(IDC_LINE_WIDTH_AUTO)
                        ? 0
                        : static_cast<std::uint8_t>(std::clamp<std::uint16_t>(number(IDC_LINE_WIDTH), 1, 8));
@@ -973,9 +956,9 @@ void ConfigureDialog::settings_from_controls() {
         checked(IDC_CHIP_STRENGTH_AUTO) ? 0 : static_cast<std::uint8_t>(std::clamp(slider(IDC_CHIP_STRENGTH), 2, 100));
     s.corner_radius = number(IDC_RADIUS);
     s.accent_strength = checked(IDC_STRENGTH_AUTO) ? 0 : static_cast<std::uint8_t>(std::clamp(slider(IDC_STRENGTH), 2, 100));
-    pick(IDC_ACCENT_SOURCE, s.accent_source);
+    pick_item(IDC_ACCENT_SOURCE, accent_items, s.accent_source);
     s.accent_argb = parse_rgb(window_text(control(IDC_ACCENT_HEX)), s.accent_argb);
-    pick(IDC_BACKGROUND, s.strip_background);
+    pick_item(IDC_BACKGROUND, background_items, s.strip_background);
     s.background_argb = parse_rgb(window_text(control(IDC_BACKGROUND_HEX)), s.background_argb);
     s.tint_strength = static_cast<std::uint8_t>(std::clamp(slider(IDC_TINT), 2, 100));
     s.transparent_background = checked(IDC_TRANSPARENT);
@@ -1006,8 +989,8 @@ void ConfigureDialog::settings_from_controls() {
     // The field wraps over several lines; a pasted line break is not part of a tab title.
     std::wstring pattern = window_text(control(IDC_TITLE_PATTERN));
     std::erase_if(pattern, [](wchar_t c) { return c == L'\r' || c == L'\n'; });
-    s.title_format = to_utf8(pattern);
-    s.tooltip_format = to_utf8(window_text(control(IDC_TOOLTIP_PATTERN)));
+    s.title_format = fbc::fonts::narrow(pattern);
+    s.tooltip_format = fbc::fonts::narrow(window_text(control(IDC_TOOLTIP_PATTERN)));
     s.animations = checked(IDC_SWITCH_ANIM);
     s.switch_ms = number(IDC_SWITCH_MS);
 
@@ -1052,7 +1035,7 @@ void ConfigureDialog::show_fonts() {
     set_label(IDC_FONT_TEXT, fbc::fonts::widen(text).c_str());
     for (int i = 0; i < static_cast<int>(f.fallbacks.size()); ++i) {
         const std::string& family = f.fallbacks[static_cast<std::size_t>(i)];
-        set_label(IDC_FALLBACK_TEXT + i, family.empty() ? L"None" : fbc::fonts::widen(family).c_str());
+        set_label(IDC_FALLBACK_TEXT1 + i, family.empty() ? L"None" : fbc::fonts::widen(family).c_str());
     }
 }
 
@@ -1072,11 +1055,11 @@ bool ConfigureDialog::on_font_command(int id) {
         f.tenths_pt = 0;
         f.weight = 0;
         f.italic = false;
-    } else if (id >= IDC_FALLBACK_PICK && id < IDC_FALLBACK_PICK + slots) {
-        std::string& slot = f.fallbacks[static_cast<std::size_t>(id - IDC_FALLBACK_PICK)];
+    } else if (id >= IDC_FALLBACK_PICK1 && id < IDC_FALLBACK_PICK1 + slots) {
+        std::string& slot = f.fallbacks[static_cast<std::size_t>(id - IDC_FALLBACK_PICK1)];
         if (!fbc::fonts::pick_family(m_hWnd, slot, f.family.empty() ? host : f.family)) return true;
-    } else if (id >= IDC_FALLBACK_CLEAR && id < IDC_FALLBACK_CLEAR + slots) {
-        f.fallbacks[static_cast<std::size_t>(id - IDC_FALLBACK_CLEAR)].clear();
+    } else if (id >= IDC_FALLBACK_CLEAR1 && id < IDC_FALLBACK_CLEAR1 + slots) {
+        f.fallbacks[static_cast<std::size_t>(id - IDC_FALLBACK_CLEAR1)].clear();
     } else {
         return false;
     }
@@ -1238,33 +1221,27 @@ void ConfigureDialog::on_command(UINT code, int id, CWindow) {
     default: break;
     }
     if (code == BN_CLICKED && checked(id)) {
-        // Ticking Automatic puts the slider (or the width) back where it rests: on the automatic
+        // Ticking Automatic puts its slider or line width back where it rests: on the automatic
         // value.
-        int bar = 0, rest = 0, width = 0;
-        switch (id) {
-        case IDC_STRENGTH_AUTO: bar = IDC_STRENGTH, rest = state_.dark ? auto_fill_dark : auto_fill_light; break;
-        case IDC_CHIP_STRENGTH_AUTO:
-            bar = IDC_CHIP_STRENGTH, rest = state_.dark ? auto_chip_dark : auto_chip_light;
-            break;
-        case IDC_HOVER_FILL_AUTO: bar = IDC_HOVER_FILL, rest = auto_hover_fill; break;
-        case IDC_HOVER_ACTIVE_FILL_AUTO: bar = IDC_HOVER_ACTIVE_FILL, rest = auto_active_hover_fill; break;
-        case IDC_HOVER_LINE_AUTO: bar = IDC_HOVER_LINE, rest = 50; break;
-        case IDC_HOVER_ACTIVE_LINE_AUTO: bar = IDC_HOVER_ACTIVE_LINE, rest = 50; break;
-        case IDC_LINE_WIDTH_AUTO: width = IDC_LINE_WIDTH, rest = auto_line_width(false); break;
-        case IDC_HOVER_LINE_WIDTH_AUTO:
-            width = IDC_HOVER_LINE_WIDTH, rest = auto_line_width(hover_outline(state_.settings.hover_style));
-            break;
-        case IDC_HOVER_ACTIVE_LINE_WIDTH_AUTO:
-            width = IDC_HOVER_ACTIVE_LINE_WIDTH;
-            rest = auto_line_width(hover_outline(state_.settings.active_hover_style));
-            break;
-        default: break;
-        }
-        if (bar != 0) ::SendMessageW(control(bar), TBM_SETPOS, TRUE, rest);
-        if (width != 0) {
+        const auto slider_rest = [this](int bar, int rest) { ::SendMessageW(control(bar), TBM_SETPOS, TRUE, rest); };
+        const auto width_rest = [this](int edit) {
             loading_ = true;
-            set_number(width, static_cast<std::uint16_t>(rest));
+            set_number(edit, auto_line_width);
             loading_ = false;
+        };
+        switch (id) {
+        case IDC_STRENGTH_AUTO: slider_rest(IDC_STRENGTH, state_.dark ? auto_fill_dark : auto_fill_light); break;
+        case IDC_CHIP_STRENGTH_AUTO:
+            slider_rest(IDC_CHIP_STRENGTH, state_.dark ? auto_chip_dark : auto_chip_light);
+            break;
+        case IDC_HOVER_FILL_AUTO: slider_rest(IDC_HOVER_FILL, auto_hover_fill); break;
+        case IDC_HOVER_ACTIVE_FILL_AUTO: slider_rest(IDC_HOVER_ACTIVE_FILL, auto_active_hover_fill); break;
+        case IDC_HOVER_LINE_AUTO: slider_rest(IDC_HOVER_LINE, auto_hover_line_opacity); break;
+        case IDC_HOVER_ACTIVE_LINE_AUTO: slider_rest(IDC_HOVER_ACTIVE_LINE, auto_hover_line_opacity); break;
+        case IDC_LINE_WIDTH_AUTO: width_rest(IDC_LINE_WIDTH); break;
+        case IDC_HOVER_LINE_WIDTH_AUTO: width_rest(IDC_HOVER_LINE_WIDTH); break;
+        case IDC_HOVER_ACTIVE_LINE_WIDTH_AUTO: width_rest(IDC_HOVER_ACTIVE_LINE_WIDTH); break;
+        default: break;
         }
     }
     if (code == EN_CHANGE || code == BN_CLICKED || code == CBN_SELCHANGE) {
@@ -1307,7 +1284,7 @@ void ConfigureDialog::on_draw_item(UINT, LPDRAWITEMSTRUCT item) {
     }
     const Swatch& swatch = swatch_for(static_cast<int>(item->CtlID));
     const std::uint32_t argb = parse_rgb(window_text(control(swatch.hex)), state_.settings.*swatch.field);
-    draw_swatch(*item, colorref(argb));
+    draw_swatch(*item, colour::colorref_from_rgb(argb & 0xFFFFFFu));
 }
 
 // ---------------------------------------------------------------------------------------------

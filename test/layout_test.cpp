@@ -136,13 +136,13 @@ int main() {
         layout_strip(in, l);
         check(!l.overflow && l.tabs[0].length == l.tabs[3].length && l.tabs[3].end() <= 500, "shrink: equal stays equal");
 
-        // Below the floor it overflows as before.
+        // Below the floor it overflows.
         in.sizing = TabSizing::fit;
         in.length = 200;
         layout_strip(in, l);
         check(l.overflow, "shrink: overflow once the floor does not fit");
 
-        // A floor of 0 keeps the old behaviour.
+        // A floor of 0: no shrinking, the tabs overflow.
         in.length = 500;
         in.shrink_floor = 0;
         layout_strip(in, l);

@@ -1,4 +1,4 @@
-// Heap-allocation counting, for the "no allocations in WM_PAINT" rule. Copied from foo_mediabar.
+// Heap-allocation counting, for the "no allocations in WM_PAINT" rule.
 //
 // The global operator new / delete are replaced for this module only: this DLL's translation
 // units and the SDK/pfc static libraries linked into it. Allocations inside other DLLs (Direct2D,

@@ -1,8 +1,8 @@
 #pragma once
 
-// Every GUID this component owns. Fresh (generated 2026-10-05), never copied from a sample or from
-// foo_bettertabs, so both components install side by side. Changing one breaks every saved layout
-// or setting that contains it, so these are frozen once shipped.
+// Every GUID this component owns. None is shared with foo_bettertabs, so both components install
+// side by side. Changing one breaks every saved layout or setting that contains it, so these are
+// frozen once shipped.
 
 #include <guiddef.h>
 

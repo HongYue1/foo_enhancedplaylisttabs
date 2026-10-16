@@ -80,8 +80,8 @@ pin left or right (again to unpin), hide the tab, remove the playlist, lock or u
 - **Another element inside**: in Default UI, right-click it in layout editing mode >
   **Replace hosted element...** (Copy / Paste as hosted element work too). In Columns UI, change
   the panel under it in the layout tree.
-- **Pinned tabs** only reorder among themselves. **Appearance > Pin icon on pinned tabs** hides
-  the pin.
+- **Pinned tabs** only reorder among themselves. They show a pin unless **Appearance > Show a pin
+  on pinned tabs** is off.
 - **Lock playlist** stops tracks from being added, removed or reordered and the playlist from being
   renamed or removed (so a click on a column header can't sort it). **Lock all playlists** and
   **Unlock all playlists** in the tab menu do every playlist at once; new playlists start unlocked. Locks and hidden

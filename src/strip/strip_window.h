@@ -35,13 +35,13 @@ struct StripTheme {
     COLORREF text{RGB(0, 0, 0)};
     //! Already made legible against the background by the host.
     COLORREF accent{RGB(0, 120, 215)};
-    //! The accent for a strong fill behind text (pill, chip at high strength), or CLR_INVALID
+    //! The accent for a strong fill behind text (pill, tab), or CLR_INVALID
     //! to use `accent`. On a light strip a cover accent has to be dark to read as a line or as
     //! text, and a dark yellow is olive; a fill carries black text, so it can keep the cover's
     //! own light colour. The strip moves from `accent` to this as the fill gets stronger.
     COLORREF fill_accent{CLR_INVALID};
     bool dark{false};
-    //! Opacity of the active tab's accent fill (pill, chip), 0 = the automatic look.
+    //! Opacity of the active tab's accent fill (pill, tab), 0 = the automatic look.
     float active_fill{0.0f};
     [[nodiscard]] bool operator==(const StripTheme&) const = default;
 };
@@ -290,6 +290,8 @@ private:
 
     static LRESULT CALLBACK window_proc(HWND wnd, UINT msg, WPARAM wp, LPARAM lp) noexcept;
     LRESULT on_message(UINT msg, WPARAM wp, LPARAM lp) noexcept;
+    //! WM_NCDESTROY: forgets what belonged to the window.
+    void on_destroyed() noexcept;
     //! Answers a test driver's describe request (fbc/describe.h): tabs, rectangles, states.
     LRESULT describe(LPARAM lp) const noexcept;
 
@@ -316,7 +318,7 @@ private:
     //! The selection is empty: hands the keyboard focus back if a Ctrl/Shift+click took it.
     void release_selection_focus() noexcept;
     //! After active_ may have changed: a new active tab is the next Shift+click's anchor (an
-    //! anchor left on the previous tab selected the wrong range after a new playlist).
+    //! anchor left on the previous tab would select the wrong range after a new playlist).
     void sync_anchor() noexcept;
     void on_button_up(POINT pt) noexcept;
     void on_middle_up(POINT pt) noexcept;
@@ -412,7 +414,7 @@ private:
     //! Outline (or underline) width of the hover mark, in whole pixels.
     [[nodiscard]] float hover_line_px(const HoverMark& mark, bool underline) const noexcept;
     void draw_chevron() noexcept;
-    //! Opacity of the active tab's accent fill (pill or chip).
+    //! Opacity of the active tab's accent fill (accent_filled() indicators only).
     [[nodiscard]] float active_fill_alpha() const noexcept;
     //! The chips' fill (Settings::chip_colour) and its opacity at rest (Settings::chip_strength).
     [[nodiscard]] COLORREF chip_fill() const noexcept;
@@ -456,9 +458,9 @@ private:
     bool layered_{false};
     BYTE alpha_{255};
     CreateTimings create_timings_{};
-    //! QueryPerformanceCounter at WM_NCCREATE / WM_CREATE of the window being created.
-    long long nccreate_qpc_{0};
-    long long create_qpc_{0};
+    //! perf::now() at WM_NCCREATE / WM_CREATE of the window being created.
+    std::uint64_t nccreate_at_{0};
+    std::uint64_t create_at_{0};
     StripTextOptions text_options_{};
     //! The strip's own background, derived from the theme.
     COLORREF surface_{RGB(255, 255, 255)};

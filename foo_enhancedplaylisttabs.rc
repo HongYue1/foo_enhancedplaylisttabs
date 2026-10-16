@@ -17,12 +17,17 @@ LANGUAGE LANG_ENGLISH, SUBLANG_ENGLISH_US
 //   columns  : one column 7..333; content indented 5. The Hover page alone has two (other
 //              tabs | active tab, labels 62 DU, fields at 77 and 207)
 //   colours  : "<thing> colour:" combo, then "Custom colour:" hex edit + swatch button that opens
-//              the colour picker
+//              the colour picker; a colour that is the theme's or your own is a pair (Tab text:)
+//   pairs    : a check box that turns a value on sits in the label column, the value in the
+//              field column (Tab text: + hex edit + swatch, Animate switches + ms)
 //   sliders  : strengths 2-100 %, value right of the slider
+//   buttons  : "Select..." opens a picker, "Default" or "Clear" undoes it, "Help" opens the
+//              title formatting help
 
 /////////////////////////////////////////////////////////////////////////////
-// Configure: per container, modeless beside the element (modal from Columns UI's Layout page). The strip, the area the pages are placed in (IDC_PAGE_HOST,
-// never shown) and the buttons.
+// Configure: per container, modeless beside the element (modal from Columns UI's Layout
+// page). The page tabs, the area the pages are placed in (IDC_PAGE_HOST, never shown) and
+// the buttons.
 
 IDD_CONFIGURE DIALOGEX 0, 0, 340, 286
 STYLE DS_SETFONT | DS_MODALFRAME | DS_CENTER | WS_POPUP | WS_CAPTION | WS_SYSMENU
@@ -47,10 +52,10 @@ BEGIN
     CONTROL         "",IDC_STATIC,"Static",SS_ETCHEDHORZ,7,14,326,1
     LTEXT           "Position:",IDC_STATIC,12,23,84,8
     COMBOBOX        IDC_POSITION,99,21,130,80,CBS_DROPDOWNLIST | WS_VSCROLL | WS_TABSTOP
-    LTEXT           "Strip thickness:",IDC_STATIC,12,39,84,8
+    LTEXT           "Thickness:",IDC_STATIC,12,39,84,8
     EDITTEXT        IDC_THICKNESS,99,37,28,12,ES_AUTOHSCROLL | ES_NUMBER
     LTEXT           "px",IDC_STATIC,131,39,202,8
-    CONTROL         "Rotate the text on side strips",IDC_ROTATE,"Button",BS_AUTOCHECKBOX | WS_TABSTOP,12,54,321,10
+    CONTROL         "Rotate titles on side strips",IDC_ROTATE,"Button",BS_AUTOCHECKBOX | WS_TABSTOP,12,54,321,10
     LTEXT           "Tabs",IDC_STATIC,7,75,326,8
     CONTROL         "",IDC_STATIC,"Static",SS_ETCHEDHORZ,7,85,326,1
     LTEXT           "Tab width:",IDC_STATIC,12,94,84,8
@@ -59,14 +64,14 @@ BEGIN
     COMBOBOX        IDC_ALIGN,99,108,130,80,CBS_DROPDOWNLIST | WS_VSCROLL | WS_TABSTOP
     LTEXT           "Overflow chevron:",IDC_STATIC,12,126,84,8
     COMBOBOX        IDC_CHEVRON,99,124,130,80,CBS_DROPDOWNLIST | WS_VSCROLL | WS_TABSTOP
-    CONTROL         "Shorten titles to fit first",IDC_SHRINK,"Button",BS_AUTOCHECKBOX | WS_TABSTOP,12,141,321,10
+    CONTROL         "Shorten titles before showing the chevron",IDC_SHRINK,"Button",BS_AUTOCHECKBOX | WS_TABSTOP,12,141,321,10
     LTEXT           "Longest title:",IDC_STATIC,12,158,84,8
     EDITTEXT        IDC_MAX_WIDTH,99,156,28,12,ES_AUTOHSCROLL | ES_NUMBER
     LTEXT           "px",IDC_STATIC,131,158,202,8
-    LTEXT           "Padding across:",IDC_STATIC,12,174,84,8
+    LTEXT           "Padding before/after:",IDC_STATIC,12,174,84,8
     EDITTEXT        IDC_PAD_X,99,172,28,12,ES_AUTOHSCROLL | ES_NUMBER
     LTEXT           "px",IDC_STATIC,131,174,202,8
-    LTEXT           "Padding along:",IDC_STATIC,12,190,84,8
+    LTEXT           "Padding above/below:",IDC_STATIC,12,190,84,8
     EDITTEXT        IDC_PAD_Y,99,188,28,12,ES_AUTOHSCROLL | ES_NUMBER
     LTEXT           "px",IDC_STATIC,131,190,202,8
     LTEXT           "Spacing:",IDC_STATIC,12,206,84,8
@@ -207,17 +212,17 @@ BEGIN
     LTEXT           "Fallback fonts",IDC_STATIC,7,47,326,8
     CONTROL         "",IDC_STATIC,"Static",SS_ETCHEDHORZ,7,57,326,1
     LTEXT           "Fallback 1:",IDC_STATIC,12,67,84,8
-    LTEXT           "",IDC_FALLBACK_TEXT,99,67,134,10,SS_NOPREFIX | SS_ENDELLIPSIS
-    PUSHBUTTON      "Select...",IDC_FALLBACK_PICK,237,64,46,14
-    PUSHBUTTON      "Clear",IDC_FALLBACK_CLEAR,287,64,46,14
+    LTEXT           "",IDC_FALLBACK_TEXT1,99,67,134,10,SS_NOPREFIX | SS_ENDELLIPSIS
+    PUSHBUTTON      "Select...",IDC_FALLBACK_PICK1,237,64,46,14
+    PUSHBUTTON      "Clear",IDC_FALLBACK_CLEAR1,287,64,46,14
     LTEXT           "Fallback 2:",IDC_STATIC,12,85,84,8
-    LTEXT           "",1204,99,85,134,10,SS_NOPREFIX | SS_ENDELLIPSIS
-    PUSHBUTTON      "Select...",1207,237,82,46,14
-    PUSHBUTTON      "Clear",1210,287,82,46,14
+    LTEXT           "",IDC_FALLBACK_TEXT2,99,85,134,10,SS_NOPREFIX | SS_ENDELLIPSIS
+    PUSHBUTTON      "Select...",IDC_FALLBACK_PICK2,237,82,46,14
+    PUSHBUTTON      "Clear",IDC_FALLBACK_CLEAR2,287,82,46,14
     LTEXT           "Fallback 3:",IDC_STATIC,12,103,84,8
-    LTEXT           "",1205,99,103,134,10,SS_NOPREFIX | SS_ENDELLIPSIS
-    PUSHBUTTON      "Select...",1208,237,100,46,14
-    PUSHBUTTON      "Clear",1211,287,100,46,14
+    LTEXT           "",IDC_FALLBACK_TEXT3,99,103,134,10,SS_NOPREFIX | SS_ENDELLIPSIS
+    PUSHBUTTON      "Select...",IDC_FALLBACK_PICK3,237,100,46,14
+    PUSHBUTTON      "Clear",IDC_FALLBACK_CLEAR3,287,100,46,14
 END
 
 IDD_PAGE_TITLES DIALOGEX 0, 0, 340, 234
@@ -229,7 +234,7 @@ BEGIN
     CONTROL         "The playlist's name",IDC_TITLE_NAME,"Button",BS_AUTORADIOBUTTON | WS_GROUP | WS_TABSTOP,12,21,321,10
     CONTROL         "Title formatting:",IDC_TITLE_FORMAT_MODE,"Button",BS_AUTORADIOBUTTON,12,35,84,10
     COMBOBOX        IDC_TITLE_EXAMPLES,99,34,180,120,CBS_DROPDOWNLIST | WS_VSCROLL | WS_TABSTOP
-    PUSHBUTTON      "Functions",IDC_TITLE_HELP,283,33,50,14
+    PUSHBUTTON      "Help",IDC_TITLE_HELP,283,33,50,14
     EDITTEXT        IDC_TITLE_PATTERN,12,50,321,24,ES_MULTILINE | ES_AUTOVSCROLL | WS_VSCROLL | WS_GROUP
     LTEXT           "",IDC_TITLE_PREVIEW,12,77,321,8,SS_NOPREFIX | SS_ENDELLIPSIS
     LTEXT           "Tooltip:",IDC_STATIC,12,92,84,8
@@ -301,7 +306,7 @@ IDD_PAGE_INPUT DIALOGEX 0, 0, 340, 234
 STYLE DS_SETFONT | DS_CONTROL | WS_CHILD
 FONT 8, "Microsoft Sans Serif", 400, 0, 0x0
 BEGIN
-    LTEXT           "Tabs",IDC_STATIC,7,4,326,8
+    LTEXT           "Mouse",IDC_STATIC,7,4,326,8
     CONTROL         "",IDC_STATIC,"Static",SS_ETCHEDHORZ,7,14,326,1
     LTEXT           "Click the active tab:",IDC_STATIC,12,23,84,8
     COMBOBOX        IDC_CLICK_ACTIVE,99,21,150,120,CBS_DROPDOWNLIST | WS_VSCROLL | WS_TABSTOP
@@ -311,12 +316,12 @@ BEGIN
     COMBOBOX        IDC_MIDDLE,99,53,150,120,CBS_DROPDOWNLIST | WS_VSCROLL | WS_TABSTOP
     CONTROL         "Unpin a pinned tab",IDC_UNPIN_PINNED,"Button",BS_AUTOCHECKBOX | WS_TABSTOP,99,70,234,10
     CONTROL         "Ask before removing tracks",IDC_CONFIRM_REMOVE,"Button",BS_AUTOCHECKBOX | WS_TABSTOP,99,84,234,10
-    LTEXT           "Strip",IDC_STATIC,7,107,326,8
-    CONTROL         "",IDC_STATIC,"Static",SS_ETCHEDHORZ,7,117,326,1
-    CONTROL         "Switch tabs with the mouse wheel",IDC_WHEEL,"Button",BS_AUTOCHECKBOX | WS_TABSTOP,12,125,321,10
-    CONTROL         "Drag tabs to reorder them",IDC_DRAG,"Button",BS_AUTOCHECKBOX | WS_TABSTOP,12,139,321,10
-    CONTROL         "Double-click empty space for a new playlist",IDC_DBLCLICK_NEW,"Button",BS_AUTOCHECKBOX | WS_TABSTOP,12,153,321,10
-    CONTROL         "Ctrl+Tab cycles the tabs",IDC_CTRL_TAB,"Button",BS_AUTOCHECKBOX | WS_TABSTOP,12,167,321,10
+    CONTROL         "Switch tabs with the mouse wheel",IDC_WHEEL,"Button",BS_AUTOCHECKBOX | WS_TABSTOP,12,98,321,10
+    CONTROL         "Drag tabs to reorder them",IDC_DRAG,"Button",BS_AUTOCHECKBOX | WS_TABSTOP,12,112,321,10
+    CONTROL         "Double-click empty space for a new playlist",IDC_DBLCLICK_NEW,"Button",BS_AUTOCHECKBOX | WS_TABSTOP,12,126,321,10
+    LTEXT           "Keyboard",IDC_STATIC,7,147,326,8
+    CONTROL         "",IDC_STATIC,"Static",SS_ETCHEDHORZ,7,157,326,1
+    CONTROL         "Switch tabs with Ctrl+Tab",IDC_CTRL_TAB,"Button",BS_AUTOCHECKBOX | WS_TABSTOP,12,165,321,10
 END
 
 IDD_PAGE_VISIBILITY DIALOGEX 0, 0, 340, 234
@@ -340,7 +345,7 @@ BEGIN
     LTEXT           "Hide after:",IDC_STATIC,12,112,84,8
     EDITTEXT        IDC_AH_HIDE,99,110,28,12,ES_AUTOHSCROLL | ES_NUMBER
     LTEXT           "ms",IDC_STATIC,131,112,202,8
-    LTEXT           "After a switch:",IDC_STATIC,12,128,84,8
+    LTEXT           "Stay after a switch:",IDC_STATIC,12,128,84,8
     EDITTEXT        IDC_AH_LINGER,99,126,28,12,ES_AUTOHSCROLL | ES_NUMBER
     LTEXT           "ms",IDC_STATIC,131,128,202,8
 END

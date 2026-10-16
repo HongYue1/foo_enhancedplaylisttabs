@@ -1,7 +1,6 @@
 #pragma once
 
-// Minimal COM RAII (from foo_mediabar): no implicit AddRef from a raw pointer, put() for
-// out-parameters.
+// Minimal COM RAII: no implicit AddRef from a raw pointer, put() for out-parameters.
 
 #include <utility>
 

@@ -96,10 +96,14 @@ inline constexpr std::uint8_t auto_chip_light = 15;
 //! in percent on the other tabs and on the active tab. The Hover page's sliders rest there.
 inline constexpr std::uint8_t auto_hover_fill = 18;
 inline constexpr std::uint8_t auto_active_hover_fill = 23;
+//! Settings::hover_line_opacity and active_hover_line_opacity 0 (automatic): the hover outline
+//! or underline in percent in the text colour (any other colour is drawn at full strength). The
+//! Hover page's sliders rest there.
+inline constexpr std::uint8_t auto_hover_line_opacity = 50;
 
 struct Settings {
     StripPosition position{StripPosition::top};
-    //! Rotated since 0.3.1: horizontal text makes a side strip as wide as its longest title.
+    //! Rotated by default: horizontal text makes a side strip as wide as its longest title.
     SideText side_text{SideText::rotated};
     TabSizing sizing{TabSizing::fit};
     TabAlign align{TabAlign::start};
@@ -176,16 +180,16 @@ struct Settings {
     bool hover_fade{false};
     std::uint16_t hover_fade_ms{120};
 
-    // Hover on the active tab (the fade above applies to it too). plain: a faint wash, as before
-    // the active tab could have its own style.
+    // Hover on the active tab (the fade above applies to it too). plain: a faint wash folded into
+    // the tab's own fill.
     HoverStyle active_hover_style{HoverStyle::plain};
     HoverColour active_hover_colour{HoverColour::text};
     std::uint32_t active_hover_argb{0xFF3EA6FFu};
     std::uint8_t active_hover_fill_strength{0};
     std::uint8_t active_hover_line_width{0};
     std::uint8_t active_hover_line_opacity{0};
-    //! brighten: the title gets lighter (OKLab lightness towards white); up to 1.6 a checkbox
-    //! (the codec still writes it as s_active_hover_lighten).
+    //! brighten: the title gets lighter (OKLab lightness towards white). The codec also writes it
+    //! as the older s_active_hover_lighten flag.
     HoverText active_hover_text{HoverText::unchanged};
     std::uint32_t active_hover_text_argb{0xFFFFFFFFu};
 

@@ -191,20 +191,6 @@ private:
     std::size_t count_{0};
 };
 
-//! The system colour picker, seeded with and writing back 0xAARRGGBB. False if cancelled.
-bool pick_colour(std::uint32_t& argb) noexcept {
-    static COLORREF custom_colours[16]{};
-    CHOOSECOLORW cc{sizeof(cc)};
-    cc.hwndOwner = core_api::get_main_window();
-    cc.rgbResult = colour::colorref_from_rgb(argb & 0xFFFFFFu);
-    cc.lpCustColors = custom_colours;
-    cc.Flags = CC_RGBINIT | CC_FULLOPEN;
-    if (!ChooseColorW(&cc)) return false;
-    argb = 0xFF000000u | colour::rgb_from_colorref(cc.rgbResult);
-    return true;
-}
-
-
 // ---------------------------------------------------------------------------------------------
 // Process-wide helpers, alive while at least one element has a window: one playback callback
 // and one keyboard filter however many elements there are.
@@ -1346,11 +1332,10 @@ void SwitcherCore::layout() noexcept {
     GetClientRect(self, &client);
     const bool show = want_strip() && strip_.hwnd() != nullptr;
     const bool ah = auto_hide() && strip_.hwnd() != nullptr;
+    const bool across_height = settings_.position == StripPosition::top || settings_.position == StripPosition::bottom;
     RECT strip_rc{};
     content_ = client;
     if (show || ah) {
-        const bool across_height =
-            settings_.position == StripPosition::top || settings_.position == StripPosition::bottom;
         const int room = across_height ? client.bottom : client.right;
         const int t = strip_extent(strip_.thickness(), room);
         switch (settings_.position) {
@@ -1401,8 +1386,6 @@ void SwitcherCore::layout() noexcept {
         if (overlay && show && ah_animating_) {
             const float p = ah_progress_;
             if (settings_.show_hide_animation == ShowHideAnimation::slide) {
-                const bool across_height =
-                    settings_.position == StripPosition::top || settings_.position == StripPosition::bottom;
                 const int t = across_height ? strip_rc.bottom - strip_rc.top : strip_rc.right - strip_rc.left;
                 const int off = static_cast<int>(std::lround((1.0f - p) * static_cast<float>(t)));
                 switch (settings_.position) {
@@ -1679,11 +1662,10 @@ void SwitcherCore::refresh_colours(bool fade) noexcept {
             return ch(16) | ch(8) | ch(0);
         };
 
-        // Every accent clears an APCA contrast floor against the strip (fb2k-common's
-        // colour.h, the same code as Media Bar and foo_onscreendisplay). A cover colour is raw,
-        // so it gets the full treatment (lightness and hue search, chroma floor); the host's
-        // selection colour and a custom colour are the user's choice and are only nudged when
-        // they would vanish.
+        // Every accent clears an APCA contrast floor against the strip (fb2k-common's colour.h). A
+        // cover colour is raw, so it gets the full treatment (lightness and hue search, chroma
+        // floor); the host's selection colour and a custom colour are the user's choice and are
+        // only nudged when they would vanish.
         std::uint32_t accent = colour::rgb_from_colorref(colours.selection);
         if (settings_.accent_source == AccentSource::custom) accent = settings_.accent_argb & 0xFFFFFFu;
         if (settings_.accent_source == AccentSource::highlight) accent = colour::rgb_from_colorref(colours.highlight);
@@ -2595,13 +2577,13 @@ void SwitcherCore::append_style_menu(HMENU menu) const noexcept {
             SetMenuItemInfoW(m, id, FALSE, &mii);
         }
     };
-    const auto sub = [&](const wchar_t* text) {
+    const auto sub = [](HMENU parent, const wchar_t* text, UINT flags) {
         HMENU m = CreatePopupMenu();
-        if (m != nullptr) AppendMenuW(style, MF_POPUP, reinterpret_cast<UINT_PTR>(m), text);
+        if (m != nullptr) AppendMenuW(parent, MF_POPUP | flags, reinterpret_cast<UINT_PTR>(m), text);
         return m;
     };
     const Settings& s = settings_;
-    if (HMENU m = sub(L"Strip position"); m != nullptr) {
+    if (HMENU m = sub(style, L"Strip position", 0); m != nullptr) {
         radio(m, style_position_top, L"Top", s.position == StripPosition::top);
         radio(m, style_position_bottom, L"Bottom", s.position == StripPosition::bottom);
         radio(m, style_position_left, L"Left", s.position == StripPosition::left);
@@ -2609,47 +2591,41 @@ void SwitcherCore::append_style_menu(HMENU menu) const noexcept {
         AppendMenuW(m, MF_SEPARATOR, 0, nullptr);
         const bool side = s.position == StripPosition::left || s.position == StripPosition::right;
         AppendMenuW(m, MF_STRING | (s.side_text == SideText::rotated ? MF_CHECKED : 0) | (side ? 0 : MF_GRAYED),
-                    style_rotate_side_text, L"Rotate text on side strips");
+                    style_rotate_side_text, L"Rotate titles on side strips");
     }
-    if (HMENU m = sub(L"Active tab"); m != nullptr) {
+    if (HMENU m = sub(style, L"Active tab", 0); m != nullptr) {
         radio(m, style_indicator_underline, L"Underline", s.indicator == Indicator::underline);
         radio(m, style_indicator_pill, L"Pill", s.indicator == Indicator::pill);
         radio(m, style_indicator_tab, L"Tab", s.indicator == Indicator::tab);
         radio(m, style_indicator_tab_outline, L"Outlined tab", s.indicator == Indicator::tab_outline);
         radio(m, style_indicator_none, L"Text only", s.indicator == Indicator::none);
         AppendMenuW(m, MF_SEPARATOR, 0, nullptr);
-        AppendMenuW(m, MF_STRING | (s.chip ? MF_CHECKED : 0), style_chip, L"Chips");
+        // Only Pill and Tab have a fill to set; the other marks are solid or faint.
+        const bool filled = s.indicator == Indicator::pill || s.indicator == Indicator::tab;
+        if (HMENU f = sub(m, L"Fill strength", filled ? 0 : MF_GRAYED); f != nullptr) {
+            const std::uint8_t a = s.accent_strength;
+            radio(f, style_strength_auto, L"Automatic", a == 0);
+            radio(f, style_strength_subtle, L"Subtle (15%)", a == 15);
+            radio(f, style_strength_medium, L"Medium (35%)", a == 35);
+            radio(f, style_strength_strong, L"Strong (60%)", a == 60);
+            radio(f, style_strength_solid, L"Solid", a == 100);
+        }
     }
-    if (HMENU m = sub(L"Accent colour"); m != nullptr) {
+    if (HMENU m = sub(style, L"Accent colour", 0); m != nullptr) {
         const std::wstring text = std::wstring(host_ui_name()) + L" selection colour";
         radio(m, style_accent_selection, text.c_str(), s.accent_source == AccentSource::selection);
         const std::wstring highlight = std::wstring(host_ui_name()) + L" " + host_highlight_name();
         radio(m, style_accent_highlight, highlight.c_str(), s.accent_source == AccentSource::highlight);
         radio(m, style_accent_cover, L"From the playing cover", s.accent_source == AccentSource::cover);
-        radio(m, style_accent_custom, L"Custom...", s.accent_source == AccentSource::custom);
+        radio(m, style_accent_custom, L"Custom colour...", s.accent_source == AccentSource::custom);
     }
-    if (HMENU m = sub(L"Accent strength"); m != nullptr) {
-        // Opacity of the active tab's fill; the underline is always solid.
-        const bool fill = s.indicator == Indicator::pill || s.indicator == Indicator::tab;
-        const UINT grey = fill ? 0 : MF_GRAYED;
-        const auto level = [&](unsigned id, const wchar_t* text, bool on) {
-            radio(m, id, text, on);
-            if (grey != 0) EnableMenuItem(m, id, MF_BYCOMMAND | MF_GRAYED);
-        };
-        const std::uint8_t a = s.accent_strength;
-        level(style_strength_auto, L"Automatic", a == 0);
-        level(style_strength_subtle, L"Subtle (15%)", a == 15);
-        level(style_strength_medium, L"Medium (35%)", a == 35);
-        level(style_strength_strong, L"Strong (60%)", a == 60);
-        level(style_strength_solid, L"Solid", a == 100);
-    }
-    if (HMENU m = sub(L"Strip background"); m != nullptr) {
+    if (HMENU m = sub(style, L"Strip background", 0); m != nullptr) {
         const std::wstring text = std::wstring(host_ui_name()) + L" background";
         radio(m, style_background_theme, text.c_str(), s.strip_background == StripBackground::theme);
         radio(m, style_background_tint, L"Tinted with the accent", s.strip_background == StripBackground::accent_tint);
-        radio(m, style_background_custom, L"Custom...", s.strip_background == StripBackground::custom);
+        radio(m, style_background_custom, L"Custom colour...", s.strip_background == StripBackground::custom);
     }
-    if (HMENU m = sub(L"Tab width"); m != nullptr) {
+    if (HMENU m = sub(style, L"Tab width", 0); m != nullptr) {
         radio(m, style_sizing_fit, L"Fit the title", s.sizing == TabSizing::fit);
         radio(m, style_sizing_equal, L"All equal", s.sizing == TabSizing::equal);
         radio(m, style_sizing_fill, L"Fill the strip", s.sizing == TabSizing::fill);
@@ -2668,13 +2644,15 @@ void SwitcherCore::append_style_menu(HMENU menu) const noexcept {
         AppendMenuW(m, MF_STRING | (s.shrink_titles ? MF_CHECKED : 0), style_shrink_titles,
                     L"Shorten titles before showing the chevron");
     }
-    if (HMENU m = sub(L"Show strip"); m != nullptr) {
+    if (HMENU m = sub(style, L"Show the strip", 0); m != nullptr) {
         radio(m, style_show_always, L"Always", s.visibility == StripVisibility::always);
         radio(m, style_show_two_or_more, L"Only with two or more playlists",
               s.visibility == StripVisibility::two_or_more);
         radio(m, style_show_auto_hide, L"Auto-hide", s.visibility == StripVisibility::auto_hide);
     }
-    AppendMenuW(style, MF_STRING | (s.pin_icon ? MF_CHECKED : 0), style_pin_icon, L"Pin icon on pinned tabs");
+    AppendMenuW(style, MF_SEPARATOR, 0, nullptr);
+    AppendMenuW(style, MF_STRING | (s.chip ? MF_CHECKED : 0), style_chip, L"Show every tab as a chip");
+    AppendMenuW(style, MF_STRING | (s.pin_icon ? MF_CHECKED : 0), style_pin_icon, L"Show a pin on pinned tabs");
     // Greyed while the Configure dialog is open: its OK or Cancel would undo these.
     AppendMenuW(menu, MF_POPUP | (configure_wnd_ != nullptr ? MF_GRAYED : 0), reinterpret_cast<UINT_PTR>(style),
                 L"Appearance");
@@ -2706,7 +2684,7 @@ void SwitcherCore::run_style_command(unsigned command) noexcept {
     case style_accent_highlight: s.accent_source = AccentSource::highlight; break;
     case style_accent_cover: s.accent_source = AccentSource::cover; break;
     case style_accent_custom: {
-        if (!pick_colour(s.accent_argb)) return;
+        if (!pick_colour(core_api::get_main_window(), s.accent_argb)) return;
         s.accent_source = AccentSource::custom;
         break;
     }
@@ -2718,7 +2696,7 @@ void SwitcherCore::run_style_command(unsigned command) noexcept {
     case style_background_theme: s.strip_background = StripBackground::theme; break;
     case style_background_tint: s.strip_background = StripBackground::accent_tint; break;
     case style_background_custom: {
-        if (!pick_colour(s.background_argb)) return;
+        if (!pick_colour(core_api::get_main_window(), s.background_argb)) return;
         s.strip_background = StripBackground::custom;
         break;
     }
@@ -2927,11 +2905,11 @@ void SwitcherCore::ah_raise() noexcept {
 }
 
 // SetParent puts the window on top of its new siblings, and nothing tells the parent: no
-// message, no EVENT_OBJECT_REORDER (test/zorder_test.cpp). Visualisations with their own
-// fullscreen mode may reparent their window to a monitor-sized popup and back, which left it
-// over the hot zone, so the strip could no longer be revealed. EVENT_OBJECT_PARENTCHANGE does report it. One out-of-context hook for
-// the process, only while some container has a hot zone; the callback runs from our message
-// loop after the reparenting call has returned.
+// message, no EVENT_OBJECT_REORDER (test/zorder_test.cpp). A visualisation with its own
+// fullscreen mode may move its window to a monitor-sized popup and back, which leaves it over
+// the hot zone, so the strip cannot be revealed. EVENT_OBJECT_PARENTCHANGE reports it: one
+// out-of-context hook for the process, only while some container has a hot zone. The callback
+// runs from our message loop after the reparenting call has returned.
 namespace {
 HWINEVENTHOOK g_parent_watch = nullptr;
 #ifndef EVENT_OBJECT_PARENTCHANGE

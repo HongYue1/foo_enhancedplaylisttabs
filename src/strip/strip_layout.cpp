@@ -103,24 +103,26 @@ void layout_strip(const StripLayoutInput& in, StripLayout& out) {
     for (std::size_t i = mid_end; i < n; ++i) pinned += out.tabs[i].length + spacing;
     const long long room = static_cast<long long>(avail) - pinned;
 
-    const auto fits = [&](std::size_t first, std::size_t last) {
-        long long used = 0;
-        for (std::size_t i = first; i < last; ++i) {
-            used += out.tabs[i].length + (i > first ? spacing : 0);
-        }
-        return used <= room;
-    };
-
+    // The window [first, last) and its length with the gaps between its tabs.
     std::size_t first = mid_begin;
     std::size_t last = mid_begin;
+    long long used = 0;
+    //! Adds tab `i` at either end of the window if it still fits; the caller moves that end.
+    const auto grow = [&](std::size_t i) {
+        const long long next = used + out.tabs[i].length + (last > first ? spacing : 0);
+        if (next > room) return false;
+        used = next;
+        return true;
+    };
     const bool active_mid = in.active != no_index && in.active >= mid_begin && in.active < mid_end;
-    while (last < mid_end && fits(first, last + 1)) ++last;
+    while (last < mid_end && grow(last)) ++last;
     if (active_mid && in.active >= last) {
-        last = in.active + 1;
         first = in.active;
-        while (first > mid_begin && fits(first - 1, last)) --first;
+        last = in.active + 1;
+        used = out.tabs[in.active].length;
+        while (first > mid_begin && grow(first - 1)) --first;
         // Fill any room left after the active tab.
-        while (last < mid_end && fits(first, last + 1)) ++last;
+        while (last < mid_end && grow(last)) ++last;
     }
     // One tab wider than everything: show it clipped. With pins, only if it is the active one
     // (otherwise the pinned tabs are all there is room for).
@@ -148,11 +150,11 @@ void layout_strip(const StripLayoutInput& in, StripLayout& out) {
 }
 
 std::size_t hit_test_strip(const StripLayout& layout, int pos) noexcept {
-    // Starts never decrease (tabs not shown sit where they would be, with no length), so one
-    // search covers the pinned tabs and the window alike.
+    // Starts never decrease (a tab not shown sits where it would be, with no length), so one
+    // binary search for the last tab starting at or before pos covers the pinned tabs and the
+    // window alike.
     std::size_t lo = 0;
     std::size_t hi = layout.tabs.size();
-    // Placed tabs are sorted and non-overlapping: find the last one starting at or before pos.
     while (lo < hi) {
         const std::size_t mid = lo + (hi - lo) / 2;
         if (layout.tabs[mid].start <= pos) {

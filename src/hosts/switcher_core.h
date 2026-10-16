@@ -12,7 +12,7 @@
 //  - playlist changes arrive once per process from playlists::Model and rebuild only the strip
 //    items (text layouts are reused for unchanged titles);
 //  - a resize moves the strip and the child only;
-//  - no timers, hooks or polling while idle.
+//  - no timers or polling while idle; auto-hide waits for events (ah_sync_parent_watch).
 
 #include <helpers/foobar2000+atl.h>
 
