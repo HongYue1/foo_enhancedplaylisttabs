@@ -1810,6 +1810,23 @@ void SwitcherCore::apply_settings() noexcept {
 
 void SwitcherCore::on_strip_activate(std::size_t index) noexcept { activate_playlist(playlist_of_strip(index), true); }
 
+void SwitcherCore::on_strip_click() noexcept {
+    // The keyboard focus elsewhere (another panel, another container) comes into this element,
+    // so Ctrl+Tab switches these tabs. Inside it already, it stays where it is.
+    const HWND self = core_wnd();
+    if (self == nullptr) return;
+    const HWND focus = GetFocus();
+    if (focus != nullptr && (focus == self || IsChild(self, focus) != FALSE)) return;
+    // Not to an auto-hide strip: it would stay shown for as long as it had the focus.
+    const bool to_strip = !auto_hide() && strip_.hwnd() != nullptr;
+    if (const HWND child = host_child_wnd(); child != nullptr) {
+        const HWND target = focus_target(child);
+        SetFocus(target != nullptr ? target : (to_strip ? strip_.hwnd() : child));
+    } else if (to_strip) {
+        SetFocus(strip_.hwnd());
+    }
+}
+
 void SwitcherCore::on_strip_step(int direction) noexcept {
     if (visible_.empty()) return;
     const std::size_t current = strip_index_of_playlist(playlists::active());

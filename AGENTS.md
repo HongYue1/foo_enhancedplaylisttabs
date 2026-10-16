@@ -78,6 +78,17 @@ splitter dividers match Columns UI. Both ported from Better Tabs.
   selection the outline is only the keyboard focus cue.
 - `test/render_test.cpp` `selection_test` covers the anchor, focus loss and a lost press.
 
+### Keyboard focus
+
+- `CtrlTabFilter` (a `message_filter`) hands Ctrl+Tab to the innermost element around the focus
+  window that can switch; Better Tabs does the same for its containers.
+- A plain click on the strip (`on_strip_click`: a tab or empty space, after the switch; a press
+  on a selected tab on its release) brings the focus in from outside the element: to the child
+  panel or its first tab stop (`focus_target`), else to the strip. Under auto-hide a child
+  without a tab stop takes it itself (a focused strip would stay shown). Focus already inside
+  stays where it is.
+- `test/render_test.cpp` `selection_test` covers which clicks report.
+
 ### Menus and dialogs
 
 - "Lock all playlists" / "Unlock all playlists" (tab menu and empty-space menu, `cmd_lock_all`,

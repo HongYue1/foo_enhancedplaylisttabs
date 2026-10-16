@@ -449,16 +449,24 @@ int block_drag_test(HWND parent) {
     return failures;
 }
 
-//! Activates like the host does: the clicked tab becomes active through set_active().
+//! Activates like the host does: the clicked tab becomes active through set_active(). Counts the
+//! plain clicks, and how many tabs were selected at the last one.
 class ActivatingListener : public NullListener {
 public:
     StripWindow* strip{nullptr};
+    int clicks{0};
+    std::size_t selected_at_click{0};
     void on_strip_activate(std::size_t index) noexcept override {
         if (strip != nullptr) strip->set_active(index);
     }
+    void on_strip_click() noexcept override {
+        ++clicks;
+        selected_at_click = strip != nullptr ? strip->selection_count() : 0;
+    }
 };
 
-//! Shift+click ranges, focus loss and a press that never gets its button-up.
+//! Shift+click ranges, focus loss, a press that never gets its button-up, and which clicks the
+//! host hears of as plain clicks (on_strip_click).
 int selection_test(HWND parent) {
     int failures = 0;
     const auto check = [&failures](bool ok, const char* what) {
@@ -493,6 +501,7 @@ int selection_test(HWND parent) {
     // Click tab 4, then a new tab appears at the end and becomes active (a new playlist).
     click(4, 0);
     check(strip.active() == 4, "a click activates");
+    check(listener.clicks == 1, "a plain click reports a click");
     StripItem fresh;
     fresh.key = 7;
     fresh.label = L"Tab G";
@@ -502,6 +511,7 @@ int selection_test(HWND parent) {
     bool range = strip.selection_count() == 6;
     for (std::size_t i = 1; i <= 6; ++i) range = range && strip.is_selected(i);
     check(range, "Shift+click after a new active tab selects 1..6");
+    check(listener.clicks == 1, "Shift+click reports no click");
     // Keyboard focus going elsewhere ends the selection.
     SendMessageW(strip.hwnd(), WM_KILLFOCUS, 0, 0);
     check(strip.selection_count() == 0, "losing the focus clears the selection");
@@ -516,6 +526,23 @@ int selection_test(HWND parent) {
     check(strip.selection_count() == 0, "a lost press ends the selection");
     click(1, MK_CONTROL);
     check(strip.selection_count() == 2, "the next Ctrl+click selection survives its button-up");
+    check(listener.clicks == 1, "Ctrl+click and a lost press report no click");
+    // A plain click on a selected tab ends the selection on its release, and reports then.
+    SendMessageW(strip.hwnd(), WM_LBUTTONDOWN, MK_LBUTTON, centre(1));
+    check(listener.clicks == 1, "a press on a selected tab waits for its release");
+    SendMessageW(strip.hwnd(), WM_LBUTTONUP, 0, centre(1));
+    check(listener.clicks == 2 && listener.selected_at_click == 0, "its release reports the click, unselected");
+    // Empty strip space is a click too; the active tab stays.
+    const RECT last = strip.tab_bounds(6);
+    const LPARAM empty = MAKELPARAM(last.right + 20, (last.top + last.bottom) / 2);
+    const std::size_t active = strip.active();
+    SendMessageW(strip.hwnd(), WM_LBUTTONDOWN, MK_LBUTTON, empty);
+    SendMessageW(strip.hwnd(), WM_LBUTTONUP, 0, empty);
+    check(last.right + 20 < 1200 && listener.clicks == 3 && strip.active() == active,
+          "a click on empty strip space reports a click");
+    SendMessageW(strip.hwnd(), WM_LBUTTONDOWN, MK_CONTROL | MK_LBUTTON, empty);
+    SendMessageW(strip.hwnd(), WM_LBUTTONUP, MK_CONTROL, empty);
+    check(listener.clicks == 3, "Ctrl+click on empty strip space reports no click");
     strip.destroy();
     return failures;
 }

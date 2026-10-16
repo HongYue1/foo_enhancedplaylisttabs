@@ -197,7 +197,8 @@ constexpr Tip tips[] = {
     {IDC_WHEEL, L"The wheel over the strip switches to the next or previous tab."},
     {IDC_DRAG, L"Dragging a tab moves the playlist itself."},
     {IDC_DBLCLICK_NEW, L"A double-click on empty strip space makes a new playlist and switches to it."},
-    {IDC_CTRL_TAB, L"Ctrl+Tab and Ctrl+Shift+Tab, while the keyboard focus is inside the panel."},
+    {IDC_CTRL_TAB, L"Ctrl+Tab and Ctrl+Shift+Tab, while the keyboard focus is inside the panel; a click on the "
+                   L"strip brings it there."},
     // Visibility
     {IDC_VISIBILITY, L"Auto-hide: the strip shows when the pointer reaches its edge of the panel."},
     {IDC_AH_MODE, L"Over the panel: the strip covers the edge of the panel. Push the panel aside: the panel makes room."},

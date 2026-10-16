@@ -2073,7 +2073,10 @@ void StripWindow::on_button_down(POINT pt, WPARAM keys, bool second_click) noexc
     const std::size_t index = hit_test(pt);
     if (index == no_index) {
         // Empty strip space ends a multiple selection too.
-        if ((keys & (MK_CONTROL | MK_SHIFT)) == 0) clear_selection();
+        if ((keys & (MK_CONTROL | MK_SHIFT)) == 0) {
+            clear_selection();
+            listener_->on_strip_click();
+        }
         return;
     }
     clear_on_release_ = false;
@@ -2099,6 +2102,7 @@ void StripWindow::on_button_down(POINT pt, WPARAM keys, bool second_click) noexc
     anchor_key_ = items_[index].spec.key;
     // Activating can re-enter (the host sends new tabs); the press is armed only afterwards.
     if (index != active_) listener_->on_strip_activate(index);
+    if (wnd_ != nullptr && !clear_on_release_) listener_->on_strip_click();
     if (wnd_ == nullptr || index >= items_.size()) return;
     press_index_ = index;
     press_pt_ = pt;
@@ -2255,7 +2259,10 @@ void StripWindow::on_button_up(POINT pt) noexcept {
     click_active_armed_ = false;
     press_index_ = no_index;
     if (dragging_) end_drag(true);
-    if (clear_on_release_) clear_selection();
+    if (clear_on_release_) {
+        clear_selection();
+        if (listener_ != nullptr) listener_->on_strip_click();
+    }
     clear_on_release_ = false;
     // Also when the pressed tab went away meanwhile (erase_item cleared the press).
     if (GetCapture() == wnd_) ReleaseCapture();

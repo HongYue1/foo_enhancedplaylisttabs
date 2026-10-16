@@ -229,6 +229,7 @@ protected:
 
     // StripListener
     void on_strip_activate(std::size_t index) noexcept override;
+    void on_strip_click() noexcept override;
     void on_strip_step(int direction) noexcept override;
     void on_strip_menu(std::size_t index, POINT screen) noexcept override;
     void on_strip_overflow(POINT screen) noexcept override;

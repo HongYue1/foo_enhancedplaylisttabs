@@ -40,6 +40,16 @@ namespace ept {
     return a.left == b.left && a.top == b.top && a.right == b.right && a.bottom == b.bottom;
 }
 
+//! Where the keyboard focus goes in a panel: the panel if it is a tab stop, else its first
+//! control that is one; nullptr if it has none.
+[[nodiscard]] inline HWND focus_target(HWND panel) noexcept {
+    if (panel == nullptr) return nullptr;
+    if ((GetWindowLongPtrW(panel, GWL_STYLE) & WS_TABSTOP) != 0) return panel;
+    const HWND first = GetNextDlgTabItem(panel, panel, FALSE);
+    const bool inside = first != nullptr && IsChild(panel, first) != FALSE;
+    return inside && (GetWindowLongPtrW(first, GWL_STYLE) & WS_TABSTOP) != 0 ? first : nullptr;
+}
+
 //! A code point as UTF-16; empty for none or anything that is not a scalar value.
 [[nodiscard]] inline std::wstring icon_text(std::uint32_t cp) {
     if (cp == 0 || cp > 0x10FFFF || (cp >= 0xD800 && cp <= 0xDFFF)) return {};

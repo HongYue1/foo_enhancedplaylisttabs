@@ -100,6 +100,9 @@ struct StripItem {
 class StripListener {
 public:
     virtual void on_strip_activate(std::size_t index) noexcept = 0;
+    //! A plain click (no Ctrl or Shift) on a tab or on empty strip space, after the switch it
+    //! made. A press on a selected tab reports on its release, once the selection has ended.
+    virtual void on_strip_click() noexcept {}
     //! Arrow keys and the mouse wheel: -1 previous, +1 next.
     virtual void on_strip_step(int direction) noexcept = 0;
     //! Right click or the menu key. index is no_index over empty strip space.

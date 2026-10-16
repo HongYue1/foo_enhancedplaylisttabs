@@ -59,13 +59,13 @@ Hover over a setting's label to see what it does and its range.
 
 | Key / mouse | Action |
 | --- | --- |
-| Click a tab | Activate its playlist |
+| Click a tab | Activate its playlist, and bring the keyboard focus into the element |
 | Click the active tab, double-click or middle-click a tab | The action you picked on the Input page (none by default) |
 | Double-click empty space | New playlist |
 | Ctrl+click / Shift+click | Add a tab to or take it out of the selection / select a range |
 | Plain click, Esc | Clear the selection |
 | Mouse wheel | Previous / next tab |
-| Ctrl+Tab / Ctrl+Shift+Tab | Next / previous tab, while the focus is inside the element |
+| Ctrl+Tab / Ctrl+Shift+Tab | Next / previous tab, while the focus is inside the element (a click on the strip brings it there) |
 | Drag a tab | Reorder; a selected tab brings the whole selection along; Esc cancels |
 | Drop files on a tab / on empty space | Add them to that playlist / new playlist named after the folder |
 | Hold a drag over a tab | Switch to it |
