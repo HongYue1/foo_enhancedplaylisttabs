@@ -132,6 +132,18 @@ int main() {
         check(tenths_from_pixels(0.0f, 96) == 0, "no height");
     }
     {
+        // Columns UI sizes in DIPs: made from GDI pixels (whole pixels at 96 DPI or at the system
+        // DPI) they read back like a GDI font; picked in points they convert as they are.
+        check(tenths_from_dips(11.0f, 96) == 80, "11 DIPs is 8 pt");
+        check(tenths_from_dips(11.0f, 120) == 80, "11 DIPs at 120 DPI is 8 pt");
+        check(tenths_from_dips(10.4f, 120) == 80, "13 px at 120 DPI is 8 pt");
+        check(tenths_from_dips(12.0f, 96) == 90, "12 DIPs is 9 pt");
+        check(tenths_from_dips(32.0f / 3.0f, 96) == 80, "8 pt picked in points");
+        check(tenths_from_dips(14.0f, 96) == 105, "10.5 pt picked in points");
+        check(tenths_from_dips(11.0667f, 96) == 83, "8.3 pt picked in points");
+        check(tenths_from_dips(0.0f, 96) == 0, "no size");
+    }
+    {
         using ept::safe_file_name;
         check(safe_file_name(L"Rock: 80s / 90s?") == L"Rock_ 80s _ 90s_", "forbidden characters");
         check(safe_file_name(L"  mix...  ") == L"mix", "trim dots and spaces");

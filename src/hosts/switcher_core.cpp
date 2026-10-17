@@ -2743,10 +2743,10 @@ bool SwitcherCore::run_configure(HWND parent, bool modeless) {
         StripTextOptions options;
         host_font(font, options);
         original.host_font_family = !font.family.empty() ? font.family : std::wstring(font.font.lfFaceName);
-        // A GDI font keeps whole pixels: read back the size it was most likely picked at (8 pt,
-        // not the 8.3 that 11 px at 96 DPI works out to).
+        // A GDI font keeps whole pixels, and so does a Columns UI size made from one: read back the
+        // size it was most likely picked at (8 pt, not the 8.3 that 11 px at 96 DPI works out to).
         original.host_font_tenths =
-            font.size_dip > 0.0f ? static_cast<std::uint32_t>(std::lround(font.size_dip * 72.0f / 96.0f * 10.0f))
+            font.size_dip > 0.0f ? tenths_from_dips(font.size_dip, font.font_dpi)
                                  : tenths_from_pixels(std::fabs(static_cast<float>(font.font.lfHeight)), font.font_dpi);
     } catch (...) {
     }

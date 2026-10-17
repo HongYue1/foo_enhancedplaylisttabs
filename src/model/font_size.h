@@ -26,4 +26,17 @@ namespace ept {
     return static_cast<std::uint32_t>(std::lround(exact * 10.0f));
 }
 
+//! Tenths of a point for a Columns UI font size in DIPs (1/96 inch). Columns UI makes its system
+//! fonts, and fonts kept from older settings, from GDI pixels: whole pixels at 96 DPI or at `dpi`,
+//! the system DPI. Such a size is read back as tenths_from_pixels does (11 DIPs is 8 pt, not
+//! 8.25); any other size is converted as it is.
+[[nodiscard]] inline std::uint32_t tenths_from_dips(float dips, unsigned dpi) noexcept {
+    if (dips <= 0.0f) return 0;
+    for (const unsigned d : {96u, dpi != 0 ? dpi : 96u}) {
+        const float pixels = dips * static_cast<float>(d) / 96.0f;
+        if (std::fabs(pixels - std::round(pixels)) < 0.01f) return tenths_from_pixels(std::round(pixels), d);
+    }
+    return static_cast<std::uint32_t>(std::lround(dips * 72.0f / 96.0f * 10.0f));
+}
+
 } // namespace ept

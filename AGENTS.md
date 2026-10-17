@@ -103,7 +103,10 @@ splitter dividers match Columns UI. Both ported from Better Tabs.
   only when all were locked) could not unlock a set with one unlocked playlist (user report).
   Playlists with another component's lock are skipped. New playlists are not locked.
 - The Fonts page's Default shows the host size read back from whole pixels with
-  `tenths_from_pixels` (`src/model/font_size.h`): 11 px at 96 DPI is 8 pt, not 8.3.
+  `tenths_from_pixels` (`src/model/font_size.h`): 11 px at 96 DPI is 8 pt, not 8.3. A Columns UI
+  size (DIPs) goes through `tenths_from_dips`: Columns UI makes its system fonts, and fonts kept
+  from older settings, from GDI pixels, so a size of whole pixels at 96 DPI or at the system DPI
+  reads back the same way (11 DIPs is 8 pt); other sizes convert as they are.
 
 - The Configure dialog is modeless when the element has a window (tab menu, Default UI edit
   menu): `run_configure(parent, true)` → `open_configure_dialog`, so the strip can be hovered and
